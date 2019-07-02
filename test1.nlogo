@@ -12,8 +12,13 @@ globals
   roads         ;; agentset containing the patches that are roads
 ]
 
+; EVs and charging stations are both breeds of turtles
+breed [ cars car ]
+breed [ stations station ]
+
 turtles-own [
   energy
+  countdown
   speed
   dir-car
   wait-time
@@ -49,7 +54,7 @@ to setup
   ;; make-current one-of intersections
   ;; label-current
 
-  set-default-shape turtles "car"
+  ;set-default-shape turtles "car"
 
   if (num-cars > count roads)
   [
@@ -63,15 +68,25 @@ to setup
   ]
 
   ;; Now create the turtles and have each created turtle call the functions setup-cars and set-car-color
-  create-turtles num-cars
+  create-cars num-cars
   [
+    set shape "car"
     setup-cars
     set-car-color
     record-data
   ]
 
+  create-stations 2
+  [
+    set shape "lightning"
+    set color red
+    set size 1.5
+    put-on-empty-road
+    ;setxy random-xcor random-ycor
+  ]
+
   ;; give the turtles an initial speed
-  ask turtles [ set-car-speed ]
+  ask cars [ set-car-speed ]
 
   reset-ticks
 end
@@ -134,6 +149,8 @@ end
 to setup-cars  ;; turtle procedure
   set speed 0
   set wait-time 0
+  set energy 300
+  set countdown 100
   put-on-empty-road
   ifelse intersection?
   [
@@ -208,7 +225,7 @@ to go
   ;; set the turtles speed for this time thru the procedure, move them forward their speed,
   ;; record data for plotting, and set the color of the turtles to an appropriate color
   ;; based on their speed
-  ask turtles [
+  ask cars [
     set-car-speed
     if intersection?
     [
@@ -222,19 +239,33 @@ to go
 ;    ]
     print dir-car
     if dir-car = 0
-    [ set heading 180
-   fd speed ]
+    [ set heading 180 ]
     if dir-car = 1
-    [ set heading 270
-    fd speed ]
+    [ set heading 270 ]
     if dir-car = 2
-    [ set heading 0
-   fd speed ]
+    [ set heading 0 ]
     if dir-car = 3
-    [ set heading 90
-   fd speed ]
+    [ set heading 90 ]
+    if energy > 50 [
+      fd speed
+      set energy energy - 1
+    ]
 
   ]
+  ask stations [
+    let prey one-of cars-here
+    if prey != nobody [
+      ask cars-here [
+        set energy 0
+        set countdown countdown - 1
+        if countdown < 0 [
+          set countdown 100
+          set energy 300
+        ]
+      ]
+    ]
+  ]
+
   ;; update the phase and the global clock
   next-phase
   tick
@@ -331,7 +362,7 @@ num-cars
 num-cars
 0
 100
-34.0
+17.0
 1
 1
 NIL
@@ -589,6 +620,11 @@ false
 0
 Polygon -7500403 true true 150 210 135 195 120 210 60 210 30 195 60 180 60 165 15 135 30 120 15 105 40 104 45 90 60 90 90 105 105 120 120 120 105 60 120 60 135 30 150 15 165 30 180 60 195 60 180 120 195 120 210 105 240 90 255 90 263 104 285 105 270 120 285 135 240 165 240 180 270 195 240 210 180 210 165 195
 Polygon -7500403 true true 135 195 135 240 120 255 105 255 105 285 135 285 165 240 165 195
+
+lightning
+false
+0
+Polygon -7500403 true true 120 135 90 195 135 195 105 300 225 165 180 165 210 105 165 105 195 0 75 135
 
 line
 true
