@@ -19,6 +19,9 @@ globals
 breed [ cars car ]
 breed [ stations station ]
 
+; breed for the nodes
+breed [ vertices vertex ]
+
 ; breeds for buildings
 breed [ houses house ]
 breed [ markets market ]
@@ -52,13 +55,21 @@ links-own
   carStation
 ]
 
+vertices-own [
+  myneighbors ;; vertices neighbors
+
+  dist ;;dist from original point to here
+  used ;;shortest path has used this vertex
+  lastnode ;;
+]
+
 ;to import-dat [datfile]
 to setup
   clear-all
   setup-grid
   setup-globals
   setup-agents
-
+  setup-vertices
 
 end
 
@@ -66,6 +77,7 @@ to setup-grid
   ;; santa fe downtown
   (foreach sort patches patchcolors [ [?1 ?2] -> ask ?1 [set pcolor ?2] ])
   ask patches with [pcolor = 9] [set pcolor 9.9999] ; to save space, 9.9.. converted to 9 during export.
+  setup-buildings
 end
 
 to setup-globals
@@ -170,6 +182,118 @@ to-report heading-angle [t] ; patch proc
   set h (towards t + 180 - [heading] of t) mod 360
   if h > 180 [set h 360 - h]
   report h
+end
+
+to setup-buildings
+  create-houses 1 [
+    set shape "house"
+    setxy (-105) (52)
+    set size 25
+    set color white - 1
+  ]
+  create-houses 1 [
+    set shape "house"
+    setxy (max-pxcor - 74) (max-pycor - 4)
+    set size 5
+    set color white - 1
+  ]
+  create-houses 1 [
+    set shape "house"
+    setxy (max-pxcor - 74) (max-pycor - 14)
+    set size 5
+    set color white - 1
+  ]
+  create-houses 1 [
+    set shape "house"
+    setxy (max-pxcor - 61) (max-pycor - 35)
+    set size 5
+    set color white - 1
+  ]
+  create-houses 1 [
+    set shape "house"
+    setxy (max-pxcor - 6.5) (max-pycor - 14)
+    set size 5
+    set color white - 1
+  ]
+  create-offices 1 [
+    set shape "telephone"
+    setxy (max-pxcor - 34) (max-pycor - 14)
+    set size 5
+    set color blue + 1
+  ]
+  create-offices 1 [
+    set shape "telephone"
+    setxy (max-pxcor - 47) (max-pycor - 14)
+    set size 5
+    set color blue + 1
+  ]
+  create-offices 1 [
+    set shape "telephone"
+    setxy (max-pxcor - 34) (max-pycor - 24)
+    set size 5
+    set color blue + 1
+  ]
+  create-parks 1 [
+    set shape "tree"
+    setxy (max-pxcor - 47) (max-pycor - 24)
+    set size 5
+    set color 65
+  ]
+  create-parks 1 [
+    set shape "tree"
+    setxy (max-pxcor - 74) (max-pycor - 24)
+    set size 5
+    set color 65
+  ]
+  create-parks 1 [
+    set shape "tree"
+    setxy (max-pxcor - 61) (max-pycor - 4)
+    set size 5
+    set color 65
+  ]
+  create-parks 1 [
+    set shape "tree"
+    setxy (max-pxcor - 20) (max-pycor - 14)
+    set size 5
+    set color 65
+  ]
+  create-carParks 1 [
+    set shape "die 6"
+    setxy (max-pxcor - 47) (max-pycor - 4)
+    set size 5
+    set color 135
+  ]
+  create-carParks 1 [
+    set shape "die 6"
+    setxy (max-pxcor - 20) (max-pycor - 35)
+    set size 5
+    set color 135
+  ]
+  create-carParks 1 [
+    set shape "die 6"
+    setxy (max-pxcor - 20) (max-pycor - 4)
+    set size 5
+    set color 135
+  ]
+  create-markets 1 [
+    set shape "house ranch"
+    setxy (max-pxcor - 74) (max-pycor - 34)
+    set size 5
+    set color 35
+  ]
+  create-markets 1 [
+    set shape "house ranch"
+    setxy (max-pxcor - 6) (max-pycor - 24)
+    set size 5
+    set color 35
+  ]
+  create-stadiums 1 [
+    set shape "ball football"
+    setxy (max-pxcor - 6.5) (max-pycor - 35)
+    set size 5
+    set color 25
+  ]
+
 end
 
 
@@ -534,7 +658,7 @@ num-cars
 num-cars
 0
 100
-50.0
+10.0
 1
 1
 NIL
