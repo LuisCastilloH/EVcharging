@@ -1,4 +1,5 @@
 ; grid of 40 x 20 using center;
+extensions [ nw ]
 
 globals
 [
@@ -50,10 +51,13 @@ patches-own
                   ;; false for non-intersection patches.
 ]
 
-links-own
-[
-  carStation
-]
+;links-own
+;[
+;  carStation
+;]
+
+directed-link-breed [ carStationsU carStationU ]
+undirected-link-breed [ verticesU vertexU ]
 
 vertices-own [
   myneighbors ;; vertices neighbors
@@ -77,6 +81,33 @@ to setup-grid
   ;; santa fe downtown
   (foreach sort patches patchcolors [ [?1 ?2] -> ask ?1 [set pcolor ?2] ])
   ask patches with [pcolor = 9] [set pcolor 9.9999] ; to save space, 9.9.. converted to 9 during export.
+;  let previous-node-pt nobody
+;  let mylist []
+;  foreach sort patches [ ?1 -> ask ?1 [
+;    if (on-road?) [
+;      set mylist fput self mylist
+;    ]
+;    ]
+;  ]
+;  show mylist
+;
+;  foreach mylist [
+;    create-vertices 1 [
+;      ;set myneighbors n-of 0 turtles
+;      set xcor pxcor
+;      set ycor pycor
+;      set shape "circle"
+;      set color brown
+;      set size 7
+;
+;      set hidden? false
+;
+;      ifelse previous-node-pt = nobody []
+;      [ create-vertexU-with previous-node-pt ]
+;      set previous-node-pt self
+;    ]
+;  ]
+
   setup-buildings
 end
 
@@ -100,7 +131,9 @@ to setup-agents
     set size 4
     set color blue
     set shape "car"
-    put-on-empty-road
+    ;put-on-empty-road
+    setxy -78 130
+
     record-data
   ]
 
@@ -115,6 +148,14 @@ to setup-agents
 
   ;; give the turtles an initial speed
   ask cars [ set-car-speed ]
+end
+
+to setup-vertices
+;  if (abs (pcolor - red) < 5) or  (abs (pcolor - orange) < 5) [
+;    create-vertices 1 [
+;
+;    ]
+;  ]
 end
 
 ;; keep track of the number of stopped turtles and the amount of time a turtle has been stopped
@@ -139,21 +180,21 @@ to put-on-empty-road  ;; turtle procedure
 end
 
 to go
-
   identify-CarStations
 
   if tickss = 0 [if (count cars) = 0 [setup]]
   set tickss tickss + 1
   ask cars [
-    move-forward
+    ;move-forward
+    move2
   ]
 end
 
 to identify-CarStations
   ask cars [
-    create-links-from stations with [ color != blue ] in-radius 10 [
+    create-carStationsU-from stations with [ color != blue ] in-radius 10 [
       set color red
-      set carStation 3
+      ;set carStation 3
       ;ask end2 [ set color blue ]
     ]
   ]
@@ -174,6 +215,32 @@ to move-forward  ; turtle proc
     set heading towards p
     forward distance p
   ]
+end
+
+to move2
+  let n 0 let p 0 let l 0
+  let mindist 99999
+  let temp 0
+  let target patch -9 -11
+  set n neighbors with [on-road?]
+  set l []
+  ask patch-left-and-ahead  90 3 [if on-road? [set l lput self l]]
+  ask patch-right-and-ahead 90 3 [if on-road? [set l lput self l]]
+  if (length l != 0) [
+    foreach l [ ?1 ->
+      ask ?1 [ show distance target set temp distance target ]
+      if (temp < mindist) [set mindist temp set p ?1]
+    ]
+  ]
+  ;if (length l != 0) and (0 = random 3) [ set p one-of l ] ;random-one-of
+  if p = 0      [ set p one-of n with [(heading-angle myself) = 0] ]
+  if p = nobody [ set p one-of n with [(heading-angle myself) <= 45] ] ;random-one-of
+  if p = nobody [ set p one-of n with [(heading-angle myself) <= 90] ] ;random-one-of
+  if p = nobody [ set p min-one-of n [heading-angle myself] ]
+  set heading towards p
+  forward distance p
+  ; -9 -11
+  ;(foreach sort patches patchcolors [ [?1 ?2] -> ask ?1 [set pcolor ?2] ])
 end
 
 to-report heading-angle [t] ; patch proc
@@ -606,13 +673,13 @@ to-report patchcolors
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-210
+244
 10
-716
-576
+785
+615
 -1
 -1
-1.84
+1.97
 1
 10
 1
@@ -658,7 +725,7 @@ num-cars
 num-cars
 0
 100
-10.0
+1.0
 1
 1
 NIL
