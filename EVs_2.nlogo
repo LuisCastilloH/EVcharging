@@ -30,6 +30,7 @@ breed [ schools school ]
 turtles-own [
   energy
   countdown
+  carHome
   speed
   dir-car
   wait-time
@@ -76,13 +77,6 @@ to setup
   ;; Now create the turtles and have each created turtle call the functions setup-cars and set-car-color
   create-cars num-cars
   [
-    ifelse (initialCars)
-    [
-      put-on-empty-road
-    ]
-    [
-      startFrom house one-of houses
-    ]
     setup-cars
   ]
 
@@ -165,6 +159,16 @@ to setup-cars ;; turtle procedure
   set energy 300
   set countdown 100
 
+  ifelse (initialCars)
+  [
+    put-on-empty-road
+  ]
+  [
+    set carHome one-of houses
+    startFrom carHome
+  ]
+
+  move-to min-one-of (roads in-radius 10) [distance myself]
   ifelse intersection?
   [
     set dir-car random 3 ;; 0 -down, 1 -left, 2 -up, 3 -right
@@ -217,10 +221,16 @@ to identify-CarStations
 end
 
 to pursue [ target ]
-  if intersection?
+  ifelse intersection?
   [
     face target
     set heading first sort-by [ [?1 ?2] -> abs(?1 - heading) < abs(?2 - heading)] [0 90 180 270]
+  ]
+  [
+    ; if the turtle is on a vertical road (rather than a horizontal one)
+    ifelse (floor((pxcor + max-pxcor - floor(grid-x-inc - 1)) mod grid-x-inc) = 0)
+    [ set dir-car 0 ]
+    [ set dir-car 3 ]
   ]
 
   if energy > 50 [
@@ -733,7 +743,7 @@ SWITCH
 492
 initialCars
 initialCars
-0
+1
 1
 -1000
 
