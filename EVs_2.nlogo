@@ -25,6 +25,7 @@ breed [ offices office ]
 breed [ parks park ]
 breed [ carParks carPark ]
 breed [ stadiums stadium ]
+breed [ schools school ]
 
 turtles-own [
   energy
@@ -51,17 +52,15 @@ links-own
   carStation
 ]
 
+;;
+;; Setup's section
+;;
+
 to setup
   clear-all
   setup-grid
   setup-globals
-
-  ;; First we ask the patches to draw themselves and set up a few variables
   setup-patches
-  ;; make-current one-of intersections
-  ;; label-current
-
-  ;set-default-shape turtles "car"
 
   if (num-cars > count roads)
   [
@@ -77,23 +76,27 @@ to setup
   ;; Now create the turtles and have each created turtle call the functions setup-cars and set-car-color
   create-cars num-cars
   [
-    set shape "car"
+    ifelse (initialCars)
+    [
+      put-on-empty-road
+    ]
+    [
+      startFrom house one-of houses
+    ]
     setup-cars
-    set-car-color
-    record-data
   ]
 
   create-stations 2
   [
     set shape "lightning"
     set color red
-    set size 0.5
+    set size 1
     put-on-empty-road
     ;setxy random-xcor random-ycor
   ]
 
   ;; give the turtles an initial speed
-  ask cars [ set-car-speed ]
+  ask cars [ set speed 0.001 ]
 
   reset-ticks
 end
@@ -145,22 +148,23 @@ to setup-intersections
   ask intersections
   [
     set intersection? true
-    ;; set green-light-up? true
     set my-phase 0
     set auto? true
     set my-row floor((pycor + max-pycor) / grid-y-inc)
     set my-column floor((pxcor + max-pxcor) / grid-x-inc)
-    ;; set-signal-colors
   ]
 end
 
 ;; Initialize the turtle variables to appropriate values and place the turtle on an empty road patch.
-to setup-cars  ;; turtle procedure
+to setup-cars ;; turtle procedure
+  set shape "car"
+  set color blue
+  record-data
   set speed 0
   set wait-time 0
   set energy 300
   set countdown 100
-  put-on-empty-road
+
   ifelse intersection?
   [
     set dir-car random 3 ;; 0 -down, 1 -left, 2 -up, 3 -right
@@ -182,16 +186,13 @@ to setup-cars  ;; turtle procedure
   [ set heading 90 ]
 end
 
+;;
+;; auxiliar functions
+;;
+
 ;; Find a road patch without any turtles on it and place the turtle there.
 to put-on-empty-road  ;; turtle procedure
   move-to one-of roads with [not any? turtles-on self]
-end
-
-;; set the color of the turtle to a different color based on how fast the turtle is moving
-to set-car-color  ;; turtle procedure
-  ifelse speed < (speed-limit / 2)
-  [ set color blue ]
-  [ set color cyan - 2 ]
 end
 
 ;; keep track of the number of stopped turtles and the amount of time a turtle has been stopped
@@ -205,23 +206,6 @@ to record-data  ;; turtle procedure
   [ set wait-time 0 ]
 end
 
-;; set the turtles' speed based on whether they are at a red traffic light or the speed of the
-;; turtle (if any) on the patch in front of them
-to set-car-speed  ;; turtle procedure
-;  ifelse pcolor = red
-;  [ set speed 0 ]
-;  [
-;    ifelse up-car?
-;    [ set-speed 0 -1 ]
-;    [ set-speed 1 0 ]
-;  ]
-  set speed 0.5
-end
-
-;;;;;;;;;;;;;;;;;;;;;;;;
-;; Runtime Procedures ;;
-;;;;;;;;;;;;;;;;;;;;;;;;
-
 to identify-CarStations
   ask cars [
     create-links-from stations with [ color != blue ] in-radius 10 [
@@ -231,6 +215,37 @@ to identify-CarStations
     ]
   ]
 end
+
+to pursue [ target ]
+  if intersection?
+  [
+    face target
+    set heading first sort-by [ [?1 ?2] -> abs(?1 - heading) < abs(?2 - heading)] [0 90 180 270]
+  ]
+
+  if energy > 50 [
+    fd speed
+    set energy energy - 1
+  ]
+
+end
+
+;; cycles phase to the next appropriate value
+to next-phase
+  ;; The phase cycles from 0 to ticks-per-cycle, then starts over.
+  set phase phase + 1
+  if phase mod ticks-per-cycle = 0
+    [ set phase 0 ]
+end
+
+to startFrom [source]
+  move-to source
+end
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;
+;; Runtime Procedures ;;
+;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; Run the simulation
 to go
@@ -246,9 +261,8 @@ to go
   ;; record data for plotting, and set the color of the turtles to an appropriate color
   ;; based on their speed
   ask cars [
-    set-car-speed
-    fd 1
-    pursue house 0
+    fd speed
+    pursue stadium 48
     if house 0 != 0 [ stop ]
   ]
 
@@ -271,28 +285,6 @@ to go
   tick
 end
 
-to pursue [ target ]
-  set-car-speed
-  if intersection?
-  [
-    face target
-    set heading first sort-by [ [?1 ?2] -> abs(?1 - heading) < abs(?2 - heading)] [0 90 180 270]
-  ]
-
-  if energy > 50 [
-    fd speed
-    set energy energy - 1
-  ]
-
-end
-
-;; cycles phase to the next appropriate value
-to next-phase
-  ;; The phase cycles from 0 to ticks-per-cycle, then starts over.
-  set phase phase + 1
-  if phase mod ticks-per-cycle = 0
-    [ set phase 0 ]
-end
 
 
 
@@ -301,120 +293,330 @@ end
 
 
 
-
-
-
-
+;; buildings...
 
 to setup-grid
+  ;; houses
   create-houses 1 [
     set shape "house"
-    setxy (max-pxcor - 6.5) (max-pycor - 4)
-    set size 5
+    setxy (max-pxcor - 77) (max-pycor - 1.5)
+    set size 3
     set color white - 1
   ]
   create-houses 1 [
     set shape "house"
-    setxy (max-pxcor - 74) (max-pycor - 4)
-    set size 5
+    setxy (max-pxcor - 77) (max-pycor - 6.5)
+    set size 3
     set color white - 1
   ]
   create-houses 1 [
     set shape "house"
-    setxy (max-pxcor - 74) (max-pycor - 14)
-    set size 5
+    setxy (max-pxcor - 77) (max-pycor - 11.5)
+    set size 3
     set color white - 1
   ]
   create-houses 1 [
     set shape "house"
-    setxy (max-pxcor - 61) (max-pycor - 35)
-    set size 5
+    setxy (max-pxcor - 68.5) (max-pycor - 1.5)
+    set size 3
     set color white - 1
   ]
   create-houses 1 [
     set shape "house"
-    setxy (max-pxcor - 6.5) (max-pycor - 14)
-    set size 5
+    setxy (max-pxcor - 68.5) (max-pycor - 6.5)
+    set size 3
     set color white - 1
   ]
-  create-offices 1 [
-    set shape "telephone"
-    setxy (max-pxcor - 34) (max-pycor - 14)
-    set size 5
-    set color blue + 1
+  create-houses 1 [
+    set shape "house"
+    setxy (max-pxcor - 77) (max-pycor - 31.5)
+    set size 3
+    set color white - 1
   ]
-  create-offices 1 [
-    set shape "telephone"
-    setxy (max-pxcor - 47) (max-pycor - 14)
-    set size 5
-    set color blue + 1
+  create-houses 1 [
+    set shape "house"
+    setxy (max-pxcor - 68.5) (max-pycor - 31.5)
+    set size 3
+    set color white - 1
   ]
-  create-offices 1 [
-    set shape "telephone"
-    setxy (max-pxcor - 34) (max-pycor - 24)
-    set size 5
-    set color blue + 1
+  create-houses 1 [
+    set shape "house"
+    setxy (max-pxcor - 77) (max-pycor - 36.5)
+    set size 3
+    set color white - 1
   ]
+  create-houses 1 [
+    set shape "house"
+    setxy (max-pxcor - 68.5) (max-pycor - 36.5)
+    set size 3
+    set color white - 1
+  ]
+  create-houses 1 [
+    set shape "house"
+    setxy (max-pxcor - 52) (max-pycor - 21.5)
+    set size 3
+    set color white - 1
+  ]
+  create-houses 1 [
+    set shape "house"
+    setxy (max-pxcor - 28) (max-pycor - 21.5)
+    set size 3
+    set color white - 1
+  ]
+  create-houses 1 [
+    set shape "house"
+    setxy (max-pxcor - 28) (max-pycor - 16.5)
+    set size 3
+    set color white - 1
+  ]
+  create-houses 1 [
+    set shape "house"
+    setxy (max-pxcor - 36) (max-pycor - 1.5)
+    set size 3
+    set color white - 1
+  ]
+  create-houses 1 [
+    set shape "house"
+    setxy (max-pxcor - 44) (max-pycor - 1.5)
+    set size 3
+    set color white - 1
+  ]
+  create-houses 1 [
+    set shape "house"
+    setxy (max-pxcor - 36) (max-pycor - 6.5)
+    set size 3
+    set color white - 1
+  ]
+  create-houses 1 [
+    set shape "house"
+    setxy (max-pxcor - 44) (max-pycor - 6.5)
+    set size 3
+    set color white - 1
+  ]
+
+  create-houses 1 [
+    set shape "house"
+    setxy (max-pxcor - 4) (max-pycor - 16.5)
+    set size 3
+    set color white - 1
+  ]
+  create-houses 1 [
+    set shape "house"
+    setxy (max-pxcor - 4) (max-pycor - 21.5)
+    set size 3
+    set color white - 1
+  ]
+  ;;;;;;
+
+
+  ;; parks
   create-parks 1 [
     set shape "tree"
-    setxy (max-pxcor - 47) (max-pycor - 24)
-    set size 5
+    setxy (max-pxcor - 77) (max-pycor - 16.5)
+    set size 3
     set color 65
   ]
   create-parks 1 [
     set shape "tree"
-    setxy (max-pxcor - 74) (max-pycor - 24)
-    set size 5
+    setxy (max-pxcor - 68.5) (max-pycor - 16.5)
+    set size 3
     set color 65
   ]
   create-parks 1 [
     set shape "tree"
-    setxy (max-pxcor - 61) (max-pycor - 4)
-    set size 5
+    setxy (max-pxcor - 77) (max-pycor - 21.5)
+    set size 3
     set color 65
   ]
   create-parks 1 [
     set shape "tree"
-    setxy (max-pxcor - 20) (max-pycor - 14)
-    set size 5
+    setxy (max-pxcor - 77) (max-pycor - 26.5)
+    set size 3
     set color 65
   ]
-  create-carParks 1 [
-    set shape "die 6"
-    setxy (max-pxcor - 47) (max-pycor - 4)
-    set size 5
-    set color 135
+  create-parks 1 [
+    set shape "tree"
+    setxy (max-pxcor - 68.5) (max-pycor - 26.5)
+    set size 3
+    set color 65
   ]
-  create-carParks 1 [
-    set shape "die 6"
-    setxy (max-pxcor - 20) (max-pycor - 35)
-    set size 5
-    set color 135
+  create-parks 1 [
+    set shape "tree"
+    setxy (max-pxcor - 59.5) (max-pycor - 16.5)
+    set size 3
+    set color 65
   ]
-  create-carParks 1 [
-    set shape "die 6"
-    setxy (max-pxcor - 20) (max-pycor - 4)
-    set size 5
-    set color 135
+  create-parks 1 [
+    set shape "tree"
+    setxy (max-pxcor - 59.5) (max-pycor - 11.5)
+    set size 3
+    set color 65
   ]
+  ;;;;;;
+
+
+  ;; markets
   create-markets 1 [
     set shape "house ranch"
-    setxy (max-pxcor - 74) (max-pycor - 34)
-    set size 5
+    setxy (max-pxcor - 68.5) (max-pycor - 21.5)
+    set size 3
     set color 35
   ]
   create-markets 1 [
     set shape "house ranch"
-    setxy (max-pxcor - 6) (max-pycor - 24)
-    set size 5
+    setxy (max-pxcor - 20) (max-pycor - 26.5)
+    set size 3
     set color 35
   ]
+  create-markets 1 [
+    set shape "house ranch"
+    setxy (max-pxcor - 36) (max-pycor - 37)
+    set size 3
+    set color 35
+  ]
+  create-markets 1 [
+    set shape "house ranch"
+    setxy (max-pxcor - 44) (max-pycor - 37)
+    set size 3
+    set color 35
+  ]
+  create-markets 1 [
+    set shape "house ranch"
+    setxy (max-pxcor - 28) (max-pycor - 1.5)
+    set size 3
+    set color 35
+  ]
+  ;;;;;;
+
+
+  ;; offices
+  create-offices 1 [
+    set shape "telephone"
+    setxy (max-pxcor - 44) (max-pycor - 16.5)
+    set size 3
+    set color blue + 1
+  ]
+  create-offices 1 [
+    set shape "telephone"
+    setxy (max-pxcor - 36) (max-pycor - 16.5)
+    set size 3
+    set color blue + 1
+  ]
+  create-offices 1 [
+    set shape "telephone"
+    setxy (max-pxcor - 36) (max-pycor - 21.5)
+    set size 3
+    set color blue + 1
+  ]
+  create-offices 1 [
+    set shape "telephone"
+    setxy (max-pxcor - 36) (max-pycor - 26.5)
+    set size 3
+    set color blue + 1
+  ]
+  create-offices 1 [
+    set shape "telephone"
+    setxy (max-pxcor - 44) (max-pycor - 26.5)
+    set size 3
+    set color blue + 1
+  ]
+  create-offices 1 [
+    set shape "telephone"
+    setxy (max-pxcor - 4) (max-pycor - 1.5)
+    set size 3
+    set color blue + 1
+  ]
+  create-offices 1 [
+    set shape "telephone"
+    setxy (max-pxcor - 12) (max-pycor - 1.5)
+    set size 3
+    set color blue + 1
+  ]
+  create-offices 1 [
+    set shape "telephone"
+    setxy (max-pxcor - 4) (max-pycor - 6.5)
+    set size 3
+    set color blue + 1
+  ]
+  create-offices 1 [
+    set shape "telephone"
+    setxy (max-pxcor - 4) (max-pycor - 26.5)
+    set size 3
+    set color blue + 1
+  ]
+  create-offices 1 [
+    set shape "telephone"
+    setxy (max-pxcor - 12) (max-pycor - 26.5)
+    set size 3
+    set color blue + 1
+  ]
+  create-offices 1 [
+    set shape "telephone"
+    setxy (max-pxcor - 12) (max-pycor - 31)
+    set size 3
+    set color blue + 1
+  ]
+  create-offices 1 [
+    set shape "telephone"
+    setxy (max-pxcor - 12) (max-pycor - 37)
+    set size 3
+    set color blue + 1
+  ]
+  ;;;;
+
+
+  ;; car Parks
+  create-carParks 1 [
+    set shape "die 6"
+    setxy (max-pxcor - 44) (max-pycor - 21.5)
+    set size 3
+    set color 135
+  ]
+  create-carParks 1 [
+    set shape "die 6"
+    setxy (max-pxcor - 12) (max-pycor - 6.5)
+    set size 3
+    set color 135
+  ]
+  create-carParks 1 [
+    set shape "die 6"
+    setxy (max-pxcor - 4) (max-pycor - 31.5)
+    set size 3
+    set color 135
+  ]
+  create-carParks 1 [
+    set shape "die 6"
+    setxy (max-pxcor - 28) (max-pycor - 26.5)
+    set size 3
+    set color 135
+  ]
+  ;;;;;
+
+
+  ;; schools
+  create-schools 1 [
+    set shape "building institution"
+    setxy (max-pxcor - 28) (max-pycor - 37)
+    set size 3
+    set color 5
+  ]
+  create-schools 1 [
+    set shape "building institution"
+    setxy (max-pxcor - 4) (max-pycor - 11.5)
+    set size 3
+    set color 5
+  ]
+  ;;;;
+
+
+  ;; stadium
   create-stadiums 1 [
     set shape "ball football"
-    setxy (max-pxcor - 6.5) (max-pycor - 35)
-    set size 5
+    setxy (max-pxcor - 4) (max-pycor - 37)
+    set size 3
     set color 25
   ]
+  ;;;;
 
 end
 @#$#@#$#@
@@ -523,6 +725,17 @@ ticks-per-cycle
 1
 NIL
 HORIZONTAL
+
+SWITCH
+62
+459
+171
+492
+initialCars
+initialCars
+0
+1
+-1000
 
 @#$#@#$#@
 ## WHAT IS IT?
