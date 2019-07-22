@@ -34,6 +34,7 @@ turtles-own [
   speed
   dir-car
   wait-time
+  movement
 ]
 
 patches-own
@@ -158,13 +159,14 @@ to setup-cars ;; turtle procedure
   set wait-time 0
   set energy 300
   set countdown 100
+  set movement 1
+  set carHome one-of houses
 
   ifelse (initialCars)
   [
     put-on-empty-road
   ]
   [
-    set carHome one-of houses
     startFrom carHome
   ]
 
@@ -221,23 +223,31 @@ to identify-CarStations
 end
 
 to pursue [ target ]
-  ifelse intersection?
+  if intersection?
   [
     face target
-    set heading first sort-by [ [?1 ?2] -> abs(?1 - heading) < abs(?2 - heading)] [0 90 180 270]
+    set heading first sort-by [ [?1 ?2] -> abs(?1 - heading) < abs(?2 - heading)] [270 180 90 0];[0 90 180 270]
   ]
+
+;  if energy > 50 [
+;    fd speed
+;    set energy energy - 1
+;  ]
+end
+
+to goHome
+  if intersection?
   [
-    ; if the turtle is on a vertical road (rather than a horizontal one)
-    ifelse (floor((pxcor + max-pxcor - floor(grid-x-inc - 1)) mod grid-x-inc) = 0)
-    [ set dir-car 0 ]
-    [ set dir-car 3 ]
+    face carHome
+    ;set heading first sort-by [ [?1 ?2] -> abs(?1 - heading) < abs(?2 - heading)] [270 180 90 0];[0 90 180 270]
+    set heading first sort-by [ [?1 ?2] -> abs(?1 - heading) < abs(?2 - heading)] [0 90 180 270];[0 90 180 270]
   ]
-
-  if energy > 50 [
-    fd speed
-    set energy energy - 1
+  let target one-of houses in-radius 2
+  if target = carHome [
+    set speed 0
+    die
   ]
-
+  ;stop
 end
 
 ;; cycles phase to the next appropriate value
@@ -272,8 +282,16 @@ to go
   ;; based on their speed
   ask cars [
     fd speed
-    pursue stadium 48
-    if house 0 != 0 [ stop ]
+    if movement = 1[
+      pursue stadium 48
+    ]
+    let target one-of stadiums in-radius 5
+    if target != nobody [
+      set movement 0
+    ]
+    if movement = 0 [
+      goHome
+    ]
   ]
 
   ask stations [
@@ -304,24 +322,23 @@ end
 
 
 ;; buildings...
-
 to setup-grid
   ;; houses
   create-houses 1 [
     set shape "house"
-    setxy (max-pxcor - 77) (max-pycor - 1.5)
+    setxy (max-pxcor - 75) (max-pycor - 1.5)
     set size 3
     set color white - 1
   ]
   create-houses 1 [
     set shape "house"
-    setxy (max-pxcor - 77) (max-pycor - 6.5)
+    setxy (max-pxcor - 75) (max-pycor - 6.5)
     set size 3
     set color white - 1
   ]
   create-houses 1 [
     set shape "house"
-    setxy (max-pxcor - 77) (max-pycor - 11.5)
+    setxy (max-pxcor - 75) (max-pycor - 11.5)
     set size 3
     set color white - 1
   ]
@@ -339,7 +356,7 @@ to setup-grid
   ]
   create-houses 1 [
     set shape "house"
-    setxy (max-pxcor - 77) (max-pycor - 31.5)
+    setxy (max-pxcor - 75) (max-pycor - 31.5)
     set size 3
     set color white - 1
   ]
@@ -351,7 +368,7 @@ to setup-grid
   ]
   create-houses 1 [
     set shape "house"
-    setxy (max-pxcor - 77) (max-pycor - 36.5)
+    setxy (max-pxcor - 75) (max-pycor - 36.5)
     set size 3
     set color white - 1
   ]
@@ -422,7 +439,7 @@ to setup-grid
   ;; parks
   create-parks 1 [
     set shape "tree"
-    setxy (max-pxcor - 77) (max-pycor - 16.5)
+    setxy (max-pxcor - 75) (max-pycor - 16.5)
     set size 3
     set color 65
   ]
@@ -434,13 +451,13 @@ to setup-grid
   ]
   create-parks 1 [
     set shape "tree"
-    setxy (max-pxcor - 77) (max-pycor - 21.5)
+    setxy (max-pxcor - 75) (max-pycor - 21.5)
     set size 3
     set color 65
   ]
   create-parks 1 [
     set shape "tree"
-    setxy (max-pxcor - 77) (max-pycor - 26.5)
+    setxy (max-pxcor - 75) (max-pycor - 26.5)
     set size 3
     set color 65
   ]
