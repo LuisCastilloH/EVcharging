@@ -91,7 +91,7 @@ to setup
   ]
 
   ;; give the turtles an initial speed
-  ask cars [ set speed 0.005 ]
+  carSpeed
 
   reset-ticks
 end
@@ -242,20 +242,17 @@ to goHome
     ;set heading first sort-by [ [?1 ?2] -> abs(?1 - heading) < abs(?2 - heading)] [270 180 90 0];[0 90 180 270]
     set heading first sort-by [ [?1 ?2] -> abs(?1 - heading) < abs(?2 - heading)] [0 180 90 270];[0 90 180 270]
   ]
-  let target one-of houses in-radius 2
+  let target one-of houses in-radius 3
   if target = carHome [
     set speed 0
-    die
+    set wait-time wait-time + 1
+    if wait-time > 500 [
+      set movement 1
+      carSpeed
+    ]
+    ;die
   ]
   ;stop
-end
-
-;; cycles phase to the next appropriate value
-to next-phase
-  ;; The phase cycles from 0 to ticks-per-cycle, then starts over.
-  set phase phase + 1
-  if phase mod ticks-per-cycle = 0
-    [ set phase 0 ]
 end
 
 to startFrom [source]
@@ -277,15 +274,12 @@ to go
   ;set-signals
   set num-cars-stopped 0
 
-  ;; set the turtles speed for this time thru the procedure, move them forward their speed,
-  ;; record data for plotting, and set the color of the turtles to an appropriate color
-  ;; based on their speed
   ask cars [
     fd speed
     if movement = 1[
       pursue stadium 48
     ]
-    let target one-of stadiums in-radius 5
+    let target one-of stadiums in-radius 4
     if target != nobody [
       set movement 0
     ]
@@ -313,8 +307,17 @@ to go
   tick
 end
 
+to carSpeed
+  ask cars [ set speed 0.005 ]
+end
 
-
+;; cycles phase to the next appropriate value
+to next-phase
+  ;; The phase cycles from 0 to ticks-per-cycle, then starts over.
+  set phase phase + 1
+  if phase mod ticks-per-cycle = 0
+    [ set phase 0 ]
+end
 
 
 
