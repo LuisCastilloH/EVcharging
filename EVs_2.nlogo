@@ -288,18 +288,22 @@ to go
   set num-cars-stopped 0
 
   ask cars [
-    fd speed
-    ifelse numberStop > 3 [
+    if numberStop > 3 [
       set speed 0
     ]
-    [
+    if movement = 1 and numberStop < 4 [
+      fd speed
       let tempLocation item numberStop trip
       pursue tempLocation
       if [distance myself] of tempLocation < 3 [
         set numberStop numberStop + 1
-        ;timerCar
+        set movement 0
+        set wait-time ticks
         ;;wait 3
       ]
+    ]
+    if movement = 0 [
+      timerCar
     ]
   ]
 
@@ -328,11 +332,10 @@ end
 
 to timerCar
   set speed 0
-  while [ wait-time < 10000 ]
+  if ticks - wait-time > 20000
   [
-    set wait-time wait-time + 1
+    set movement 1
   ]
-  set wait-time 0
   carSpeed
 end
 
