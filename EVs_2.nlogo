@@ -35,6 +35,7 @@ turtles-own [
   dir-car
   wait-time
   movement
+  trip ;; list with personalised paths
 ]
 
 patches-own
@@ -161,6 +162,8 @@ to setup-cars ;; turtle procedure
   set countdown 100
   set movement 1
   set carHome one-of houses
+  set trip []
+  createTrip
 
   ifelse (initialCars)
   [
@@ -195,6 +198,14 @@ end
 ;;
 ;; auxiliar functions
 ;;
+
+to createTrip
+  set trip lput carHome trip
+  set trip lput one-of markets trip
+  set trip lput one-of offices trip
+  set trip lput one-of parks trip
+  set trip lput carHome trip
+end
 
 ;; Find a road patch without any turtles on it and place the turtle there.
 to put-on-empty-road  ;; turtle procedure
