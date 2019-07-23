@@ -1,4 +1,4 @@
-; grid of 40 x 20 using center;
+;; grid of 40 x 20 using center;
 
 globals
 [
@@ -91,7 +91,7 @@ to setup
   ]
 
   ;; give the turtles an initial speed
-  ask cars [ set speed 0.001 ]
+  ask cars [ set speed 0.005 ]
 
   reset-ticks
 end
@@ -126,10 +126,10 @@ to setup-patches
 
   ;; initialize the global variables that hold patch agentsets
   set roads patches with
-    [(floor((pxcor + max-pxcor - floor(grid-x-inc - 1)) mod grid-x-inc) = 0) or
+    [(pxcor = min-pxcor) or (floor((pxcor + max-pxcor - floor(grid-x-inc - 1)) mod grid-x-inc) = 0) or
     (floor((pycor + max-pycor) mod grid-y-inc) = 0)]
   set intersections roads with
-    [(floor((pxcor + max-pxcor - floor(grid-x-inc - 1)) mod grid-x-inc) = 0) and
+    [(pxcor = min-pxcor) or (floor((pxcor + max-pxcor - floor(grid-x-inc - 1)) mod grid-x-inc) = 0) and
     (floor((pycor + max-pycor) mod grid-y-inc) = 0)]
 
   ask roads [ set pcolor white ]
@@ -226,7 +226,7 @@ to pursue [ target ]
   if intersection?
   [
     face target
-    set heading first sort-by [ [?1 ?2] -> abs(?1 - heading) < abs(?2 - heading)] [270 180 90 0];[0 90 180 270]
+    set heading first sort-by [ [?1 ?2] -> abs(?1 - heading) < abs(?2 - heading)] [0 90 180 270]
   ]
 
 ;  if energy > 50 [
@@ -240,7 +240,7 @@ to goHome
   [
     face carHome
     ;set heading first sort-by [ [?1 ?2] -> abs(?1 - heading) < abs(?2 - heading)] [270 180 90 0];[0 90 180 270]
-    set heading first sort-by [ [?1 ?2] -> abs(?1 - heading) < abs(?2 - heading)] [0 90 180 270];[0 90 180 270]
+    set heading first sort-by [ [?1 ?2] -> abs(?1 - heading) < abs(?2 - heading)] [0 180 90 270];[0 90 180 270]
   ]
   let target one-of houses in-radius 2
   if target = carHome [
@@ -320,25 +320,24 @@ end
 
 
 
-
 ;; buildings...
 to setup-grid
   ;; houses
   create-houses 1 [
     set shape "house"
-    setxy (max-pxcor - 75) (max-pycor - 1.5)
+    setxy (max-pxcor - 76.5) (max-pycor - 1.5)
     set size 3
     set color white - 1
   ]
   create-houses 1 [
     set shape "house"
-    setxy (max-pxcor - 75) (max-pycor - 6.5)
+    setxy (max-pxcor - 76.5) (max-pycor - 6.5)
     set size 3
     set color white - 1
   ]
   create-houses 1 [
     set shape "house"
-    setxy (max-pxcor - 75) (max-pycor - 11.5)
+    setxy (max-pxcor - 76.5) (max-pycor - 11.5)
     set size 3
     set color white - 1
   ]
@@ -356,7 +355,7 @@ to setup-grid
   ]
   create-houses 1 [
     set shape "house"
-    setxy (max-pxcor - 75) (max-pycor - 31.5)
+    setxy (max-pxcor - 76.5) (max-pycor - 31.5)
     set size 3
     set color white - 1
   ]
@@ -368,7 +367,7 @@ to setup-grid
   ]
   create-houses 1 [
     set shape "house"
-    setxy (max-pxcor - 75) (max-pycor - 36.5)
+    setxy (max-pxcor - 76.5) (max-pycor - 36.5)
     set size 3
     set color white - 1
   ]
@@ -439,7 +438,7 @@ to setup-grid
   ;; parks
   create-parks 1 [
     set shape "tree"
-    setxy (max-pxcor - 75) (max-pycor - 16.5)
+    setxy (max-pxcor - 76.5) (max-pycor - 16.5)
     set size 3
     set color 65
   ]
@@ -451,13 +450,13 @@ to setup-grid
   ]
   create-parks 1 [
     set shape "tree"
-    setxy (max-pxcor - 75) (max-pycor - 21.5)
+    setxy (max-pxcor - 76.5) (max-pycor - 21.5)
     set size 3
     set color 65
   ]
   create-parks 1 [
     set shape "tree"
-    setxy (max-pxcor - 75) (max-pycor - 26.5)
+    setxy (max-pxcor - 76.5) (max-pycor - 26.5)
     set size 3
     set color 65
   ]
