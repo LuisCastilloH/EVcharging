@@ -36,6 +36,7 @@ turtles-own [
   wait-time
   movement
   trip ;; list with personalised paths
+  numberStop
 ]
 
 patches-own
@@ -164,6 +165,7 @@ to setup-cars ;; turtle procedure
   set carHome one-of houses
   set trip []
   createTrip
+  set numberStop 0
 
   ifelse (initialCars)
   [
@@ -200,7 +202,7 @@ end
 ;;
 
 to createTrip
-  set trip lput carHome trip
+  ;;set trip lput carHome trip
   set trip lput one-of markets trip
   set trip lput one-of offices trip
   set trip lput one-of parks trip
@@ -287,15 +289,17 @@ to go
 
   ask cars [
     fd speed
-    if movement = 1[
-      pursue stadium 48
+    ifelse numberStop > 3 [
+      set speed 0
     ]
-    let target one-of stadiums in-radius 4
-    if target != nobody [
-      set movement 0
-    ]
-    if movement = 0 [
-      goHome
+    [
+      let tempLocation item numberStop trip
+      pursue tempLocation
+      if [distance myself] of tempLocation < 3 [
+        set numberStop numberStop + 1
+        ;timerCar
+        ;;wait 3
+      ]
     ]
   ]
 
@@ -320,6 +324,16 @@ end
 
 to carSpeed
   ask cars [ set speed 0.005 ]
+end
+
+to timerCar
+  set speed 0
+  while [ wait-time < 10000 ]
+  [
+    set wait-time wait-time + 1
+  ]
+  set wait-time 0
+  carSpeed
 end
 
 ;; cycles phase to the next appropriate value
@@ -499,31 +513,31 @@ to setup-grid
   create-markets 1 [
     set shape "house ranch"
     setxy (max-pxcor - 68.5) (max-pycor - 21.5)
-    set size 3
+    set size 4
     set color 35
   ]
   create-markets 1 [
     set shape "house ranch"
     setxy (max-pxcor - 20) (max-pycor - 26.5)
-    set size 3
+    set size 4
     set color 35
   ]
   create-markets 1 [
     set shape "house ranch"
-    setxy (max-pxcor - 36) (max-pycor - 37)
-    set size 3
+    setxy (max-pxcor - 36) (max-pycor - 36)
+    set size 4
     set color 35
   ]
   create-markets 1 [
     set shape "house ranch"
-    setxy (max-pxcor - 44) (max-pycor - 37)
-    set size 3
+    setxy (max-pxcor - 44) (max-pycor - 36)
+    set size 4
     set color 35
   ]
   create-markets 1 [
     set shape "house ranch"
     setxy (max-pxcor - 28) (max-pycor - 1.5)
-    set size 3
+    set size 4
     set color 35
   ]
   ;;;;;;
@@ -592,13 +606,13 @@ to setup-grid
   ]
   create-offices 1 [
     set shape "telephone"
-    setxy (max-pxcor - 12) (max-pycor - 31)
+    setxy (max-pxcor - 12) (max-pycor - 31.5)
     set size 3
     set color blue + 1
   ]
   create-offices 1 [
     set shape "telephone"
-    setxy (max-pxcor - 12) (max-pycor - 37)
+    setxy (max-pxcor - 12) (max-pycor - 36.5)
     set size 3
     set color blue + 1
   ]
@@ -661,10 +675,10 @@ to setup-grid
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-256
-45
-1006
-429
+247
+54
+997
+438
 -1
 -1
 9.1605
