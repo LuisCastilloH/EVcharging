@@ -36,6 +36,7 @@ turtles-own [
   wait-time
   movement
   trip ;; list with personalised paths
+  tripTime ;; timing for trips
   numberStop
   driver
 ]
@@ -165,6 +166,7 @@ to setup-cars ;; turtle procedure
   set movement 1
   set carHome one-of houses
   set trip []
+  set tripTime []
   setDriver
   set numberStop 0
 
@@ -207,16 +209,23 @@ to setDriver
   set driver random 1
   let tempTrip []
   let tempTimes []
-  if driver = 0 [ set tempTrip (list schools markets parks) ]
-  if driver = 1 [ set tempTrip (list offices) ]
-  createTrip tempTrip
+  if driver = 0 [ set tempTrip (list schools markets parks) set tempTimes [ 50000 20000 10000 ] ]
+  if driver = 1 [ set tempTrip (list offices) set tempTimes [ 60000 ] ]
+  createTrip tempTrip tempTimes
 end
 
-to createTrip [ targetTrip ]
+to createTrip [ targetTrip targetTime ]
+  ;; just to be sync with the trip variable in go procedure
+  ;set tripTime lput 0 tripTime
   foreach targetTrip [ [ a ] ->
     set trip lput one-of a trip
+    ;set tripTime lput item 2 a tripTime
   ]
   set trip lput carHome trip
+  foreach targetTime [ [ a ] ->
+    set tripTime lput a tripTime
+  ]
+  set tripTime lput 0 tripTime
 
   ;;set trip lput carHome trip
 ;  set trip lput one-of markets trip
@@ -310,16 +319,16 @@ to go
     if movement = 1 and numberStop < length trip [
       fd speed
       let tempLocation item numberStop trip
+      ;let tempTimer
       pursue tempLocation
       if [distance myself] of tempLocation < 3 [
         set numberStop numberStop + 1
         set movement 0
         set wait-time ticks
-        ;;wait 3
       ]
     ]
     if movement = 0 [
-      timerCar
+      timerCar item (numberStop - 1) tripTime
     ]
   ]
 
@@ -346,9 +355,9 @@ to carSpeed
   ask cars [ set speed 0.005 ]
 end
 
-to timerCar
+to timerCar [ limit ]
   set speed 0
-  if ticks - wait-time > 20000
+  if ticks - wait-time > limit
   [
     set movement 1
   ]
