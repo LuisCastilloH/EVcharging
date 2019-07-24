@@ -39,6 +39,7 @@ turtles-own [
   tripTime ;; timing for trips
   numberStop
   driver
+  nearestStation
 ]
 
 patches-own
@@ -161,7 +162,7 @@ to setup-cars ;; turtle procedure
   record-data
   set speed 0
   set wait-time 0
-  set energy 300
+  set energy 50000
   set countdown 100
   set movement 1
   set carHome one-of houses
@@ -270,31 +271,6 @@ to pursue [ target ]
     face target
     set heading first sort-by [ [?1 ?2] -> abs(?1 - heading) < abs(?2 - heading)] [0 90 180 270]
   ]
-
-;  if energy > 50 [
-;    fd speed
-;    set energy energy - 1
-;  ]
-end
-
-to goHome
-  if intersection?
-  [
-    face carHome
-    ;set heading first sort-by [ [?1 ?2] -> abs(?1 - heading) < abs(?2 - heading)] [270 180 90 0];[0 90 180 270]
-    set heading first sort-by [ [?1 ?2] -> abs(?1 - heading) < abs(?2 - heading)] [0 180 90 270];[0 90 180 270]
-  ]
-  let target one-of houses in-radius 3
-  if target = carHome [
-    set speed 0
-    set wait-time wait-time + 1
-    if wait-time > 500 [
-      set movement 1
-      carSpeed
-    ]
-    ;die
-  ]
-  ;stop
 end
 
 to startFrom [source]
@@ -317,11 +293,16 @@ to go
   set num-cars-stopped 0
 
   ask cars [
+    set nearestStation min-one-of stations [distance myself]
+    if [distance myself] of nearestStation < 1 [
+      set speed 0
+    ]
     if numberStop >= length trip [
       set speed 0
     ]
-    if movement = 1 and numberStop < length trip [
+    if movement = 1 and numberStop < length trip and energy > 20000 [
       fd speed
+      set energy energy - 1
       let tempLocation item numberStop trip
       ;let tempTimer
       pursue tempLocation
@@ -331,24 +312,32 @@ to go
         set wait-time ticks
       ]
     ]
+    if energy <= 20000 [ ;; else
+      pursue nearestStation
+      fd speed
+      set energy energy - 1
+      ;; temp instruction...
+;      set numberStop 10
+    ]
     if movement = 0 [
+      ;show "hola"
       timerCar item (numberStop - 1) tripTime
     ]
   ]
 
-  ask stations [
-    let prey one-of cars-here
-    if prey != nobody [
-      ask cars-here [
-        set energy 0
-        set countdown countdown - 1
-        if countdown < 0 [
-          set countdown 100
-          set energy 300
-        ]
-      ]
-    ]
-  ]
+;  ask stations [
+;    let prey one-of cars-here
+;    if prey != nobody [
+;      ask cars-here [
+;        set energy 0
+;        set countdown countdown - 1
+;        if countdown < 0 [
+;          set countdown 100
+;          set energy 300
+;        ]
+;      ]
+;    ]
+;  ]
 
   ;; update the phase and the global clock
   next-phase
@@ -791,7 +780,7 @@ num-cars
 num-cars
 0
 100
-10.0
+15.0
 1
 1
 NIL
