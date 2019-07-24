@@ -37,6 +37,7 @@ turtles-own [
   movement
   trip ;; list with personalised paths
   numberStop
+  driver
 ]
 
 patches-own
@@ -164,7 +165,7 @@ to setup-cars ;; turtle procedure
   set movement 1
   set carHome one-of houses
   set trip []
-  createTrip
+  setDriver
   set numberStop 0
 
   ifelse (initialCars)
@@ -201,12 +202,27 @@ end
 ;; auxiliar functions
 ;;
 
-to createTrip
-  ;;set trip lput carHome trip
-  set trip lput one-of markets trip
-  set trip lput one-of offices trip
-  set trip lput one-of parks trip
+to setDriver
+  ;; drivers: 0- professor, 1- business-man, 2- taxiDriver, 3- Nanny, 4- softwareDev
+  set driver random 1
+  let tempTrip []
+  let tempTimes []
+  if driver = 0 [ set tempTrip (list schools markets parks) ]
+  if driver = 1 [ set tempTrip (list offices) ]
+  createTrip tempTrip
+end
+
+to createTrip [ targetTrip ]
+  foreach targetTrip [ [ a ] ->
+    set trip lput one-of a trip
+  ]
   set trip lput carHome trip
+
+  ;;set trip lput carHome trip
+;  set trip lput one-of markets trip
+;  set trip lput one-of offices trip
+;  set trip lput one-of parks trip
+;  set trip lput carHome trip
 end
 
 ;; Find a road patch without any turtles on it and place the turtle there.
@@ -288,10 +304,10 @@ to go
   set num-cars-stopped 0
 
   ask cars [
-    if numberStop > 3 [
+    if numberStop >= length trip [
       set speed 0
     ]
-    if movement = 1 and numberStop < 4 [
+    if movement = 1 and numberStop < length trip [
       fd speed
       let tempLocation item numberStop trip
       pursue tempLocation
@@ -653,7 +669,7 @@ to setup-grid
   ;; schools
   create-schools 1 [
     set shape "building institution"
-    setxy (max-pxcor - 28) (max-pycor - 37)
+    setxy (max-pxcor - 28) (max-pycor - 36.5)
     set size 3
     set color 5
   ]
@@ -669,7 +685,7 @@ to setup-grid
   ;; stadium
   create-stadiums 1 [
     set shape "ball football"
-    setxy (max-pxcor - 4) (max-pycor - 37)
+    setxy (max-pxcor - 4) (max-pycor - 36.5)
     set size 3
     set color 25
   ]
