@@ -206,11 +206,20 @@ end
 
 to setDriver
   ;; drivers: 0- professor, 1- business-man, 2- taxiDriver, 3- Nanny, 4- softwareDev
-  set driver random 1
+  set driver random 5
   let tempTrip []
   let tempTimes []
   if driver = 0 [ set tempTrip (list schools markets parks) set tempTimes [ 50000 20000 10000 ] ]
-  if driver = 1 [ set tempTrip (list offices) set tempTimes [ 60000 ] ]
+  if driver = 1 [ set tempTrip (list offices) set tempTimes [ 80000 ] ]
+  if driver = 2 [
+    set tempTrip shuffle (list houses schools offices offices markets stadiums parks )
+    set tempTimes [ 10000 10000 10000 10000 10000 10000 10000 ]
+  ]
+  if driver = 3 [
+    set tempTrip (list schools markets houses schools houses parks)
+    set tempTimes [ 10000 20000 40000 10000 30000 20000 ]
+  ]
+  if driver = 4 [ set tempTrip (list offices) set tempTimes [ 100000 ] ]
   createTrip tempTrip tempTimes
 end
 
@@ -227,11 +236,6 @@ to createTrip [ targetTrip targetTime ]
   ]
   set tripTime lput 0 tripTime
 
-  ;;set trip lput carHome trip
-;  set trip lput one-of markets trip
-;  set trip lput one-of offices trip
-;  set trip lput one-of parks trip
-;  set trip lput carHome trip
 end
 
 ;; Find a road patch without any turtles on it and place the turtle there.
