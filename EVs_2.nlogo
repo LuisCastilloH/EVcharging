@@ -35,6 +35,7 @@ turtles-own [
   dir-car
   wait-time
   movement
+  isCharging
   trip ;; list with personalised paths
   tripTime ;; timing for trips
   numberStop
@@ -165,6 +166,7 @@ to setup-cars ;; turtle procedure
   set energy 50000
   set countdown 100
   set movement 1
+  set isCharging 0
   set carHome one-of houses
   set trip []
   set tripTime []
@@ -294,17 +296,16 @@ to go
 
   ask cars [
     set nearestStation min-one-of stations [distance myself]
-    if [distance myself] of nearestStation < 1 [
-      set speed 0
-    ]
     if numberStop >= length trip [
       set speed 0
     ]
-    if movement = 1 and numberStop < length trip and energy > 20000 [
+    if movement = 1 and numberStop < length trip and energy > 20000 and isCharging = 0 [
       fd speed
       set energy energy - 1
       let tempLocation item numberStop trip
       ;let tempTimer
+      set label-color green
+      set label tempLocation
       pursue tempLocation
       if [distance myself] of tempLocation < 3 [
         set numberStop numberStop + 1
@@ -312,12 +313,18 @@ to go
         set wait-time ticks
       ]
     ]
-    if energy <= 20000 [ ;; else
-      pursue nearestStation
-      fd speed
-      set energy energy - 1
-      ;; temp instruction...
-;      set numberStop 10
+    if energy <= 20000 or isCharging = 1 [ ;; else
+      ifelse [distance myself] of nearestStation < 1 [
+        set speed 0
+        set isCharging 1
+        set energy energy + 1
+        if energy > 49000 [ set isCharging 0 ]
+      ]
+      [
+        pursue nearestStation
+        fd speed
+        set energy energy - 1
+      ]
     ]
     if movement = 0 [
       ;show "hola"
@@ -329,12 +336,9 @@ to go
 ;    let prey one-of cars-here
 ;    if prey != nobody [
 ;      ask cars-here [
-;        set energy 0
-;        set countdown countdown - 1
-;        if countdown < 0 [
-;          set countdown 100
-;          set energy 300
-;        ]
+;        ;set energy 0
+;        set energy energy + 1
+;        if energy > 49000 [ set isCharging 0 ]
 ;      ]
 ;    ]
 ;  ]
@@ -780,7 +784,7 @@ num-cars
 num-cars
 0
 100
-15.0
+10.0
 1
 1
 NIL
