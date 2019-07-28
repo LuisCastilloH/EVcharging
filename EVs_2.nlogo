@@ -27,7 +27,7 @@ breed [ carParks carPark ]
 breed [ stadiums stadium ]
 breed [ schools school ]
 
-turtles-own [
+cars-own [
   energy
   countdown
   carHome
@@ -318,7 +318,10 @@ to go
         set speed 0
         set isCharging 1
         set energy energy + 1
-        if energy > 49000 [ set isCharging 0 ]
+        if energy > 49999 [
+          set isCharging 0
+          carSpeed
+        ]
       ]
       [
         pursue nearestStation
