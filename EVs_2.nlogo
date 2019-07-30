@@ -36,11 +36,20 @@ cars-own [
   wait-time
   movement
   isCharging
+  waitingLane
+  inPosition
   trip ;; list with personalised paths
   tripTime ;; timing for trips
   numberStop
   driver
   nearestStation
+]
+
+stations-own [
+  numberOfBSS
+  numberOfLanes
+  queueNumber
+  timeToCharge
 ]
 
 patches-own
@@ -89,11 +98,7 @@ to setup
 
   create-stations 2
   [
-    set shape "lightning"
-    set color red
-    set size 1
-    put-on-empty-road
-    ;setxy random-xcor random-ycor
+    setup-stations
   ]
 
   ;; give the turtles an initial speed
@@ -156,6 +161,17 @@ to setup-intersections
   ]
 end
 
+to setup-stations
+  set shape "lightning"
+  set color red
+  set size 1
+  put-on-empty-road
+  set numberOfBSS 5
+  set numberOfLanes 2
+  set timeToCharge 20000
+  ;setxy random-xcor random-ycor
+end
+
 ;; Initialize the turtle variables to appropriate values and place the turtle on an empty road patch.
 to setup-cars ;; turtle procedure
   set shape "car"
@@ -167,6 +183,8 @@ to setup-cars ;; turtle procedure
   set countdown 100
   set movement 1
   set isCharging 0
+  set waitingLane 0
+  set inPosition 0
   set carHome one-of houses
   set trip []
   set tripTime []
@@ -307,7 +325,7 @@ to go
       set label-color green
       set label tempLocation
       pursue tempLocation
-      if [distance myself] of tempLocation < 3 [
+      if [distance myself] of tempLocation < 3.1 [
         set numberStop numberStop + 1
         set movement 0
         set wait-time ticks
@@ -317,11 +335,11 @@ to go
       ifelse [distance myself] of nearestStation < 1 [
         set speed 0
         set isCharging 1
-        set energy energy + 1
-        if energy > 49999 [
-          set isCharging 0
-          carSpeed
-        ]
+;        set energy energy + 1
+;        if energy > 49999 [
+;          set isCharging 0
+;          carSpeed
+;        ]
       ]
       [
         pursue nearestStation
@@ -335,20 +353,49 @@ to go
     ]
   ]
 
-;  ask stations [
-;    let prey one-of cars-here
-;    if prey != nobody [
-;      ask cars-here [
-;        ;set energy 0
-;        set energy energy + 1
-;        if energy > 49000 [ set isCharging 0 ]
-;      ]
-;    ]
-;  ]
-
+  ask stations [
+    let carsCharging cars in-radius 1
+    if one-of carsCharging != nobody [
+      ask carsCharging [
+        if isCharging = 1 and inPosition = 0 [
+          ask nearestStation [
+            ;show numberOfLanes
+            ifelse numberOfLanes > 0 [
+              set numberOfLanes numberOfLanes - 1
+              ; charge EV
+              ask carsCharging [ set inPosition 1 ]
+              ;show numberOfLanes
+            ]
+            [
+              ifelse count(carsCharging) - 2 < 0 [ set queueNumber 0 ]
+              [ set queueNumber count(carsCharging) - 2 ]
+              ask carsCharging [ set waitingLane 1 ]
+            ]
+          ]
+        ]
+        if inPosition = 1 [
+          chargeCar
+        ]
+      ]
+    ]
+    ;show carsCharging
+  ]
   ;; update the phase and the global clock
   next-phase
   tick
+end
+
+to chargeCar
+  set energy energy + 1
+  if energy > 49999 [
+    set isCharging 0
+    set inPosition 0
+    carSpeed
+    ask nearestStation [
+      set numberOfLanes numberOfLanes + 1
+      set queueNumber queueNumber - 1
+    ]
+  ]
 end
 
 to carSpeed
@@ -423,13 +470,13 @@ to setup-grid
   ]
   create-houses 1 [
     set shape "house"
-    setxy (max-pxcor - 76.5) (max-pycor - 36.5)
+    setxy (max-pxcor - 76.5) (max-pycor - 36.4)
     set size 3
     set color white - 1
   ]
   create-houses 1 [
     set shape "house"
-    setxy (max-pxcor - 68.5) (max-pycor - 36.5)
+    setxy (max-pxcor - 68.5) (max-pycor - 36.4)
     set size 3
     set color white - 1
   ]
