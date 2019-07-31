@@ -12,6 +12,7 @@ globals
   ;; patch agentsets
   intersections ;; agentset containing the patches that are intersections
   roads         ;; agentset containing the patches that are roads
+  days
 ]
 
 ; breeds for agents
@@ -29,7 +30,8 @@ breed [ schools school ]
 
 cars-own [
   energy
-  countdown
+  arrivalTimeStation
+  queueTimeStation
   carHome
   speed
   dir-car
@@ -50,6 +52,8 @@ stations-own [
   numberOfLanes
   queueNumber
   timeToCharge
+  arrivalTimeCar
+  queueTimeCar
 ]
 
 patches-own
@@ -75,6 +79,7 @@ links-own
 
 to setup
   clear-all
+  set days 1
   setup-grid
   setup-globals
   setup-patches
@@ -169,6 +174,8 @@ to setup-stations
   set numberOfBSS 5
   set numberOfLanes 2
   set timeToCharge 20000
+  set arrivalTimeCar []
+  set queueTimeCar []
   ;setxy random-xcor random-ycor
 end
 
@@ -180,7 +187,8 @@ to setup-cars ;; turtle procedure
   set speed 0
   set wait-time 0
   set energy 50000
-  set countdown 100
+  set arrivalTimeStation 0
+  set queueTimeStation 0
   set movement 1
   set isCharging 0
   set waitingLane 0
@@ -335,20 +343,21 @@ to go
       ifelse [distance myself] of nearestStation < 1 [
         set speed 0
         set isCharging 1
-;        set energy energy + 1
-;        if energy > 49999 [
-;          set isCharging 0
-;          carSpeed
-;        ]
+        ;; process to obtain arrivalTimeCar and append it to list of the station
+        ask nearestStation [
+          let temp [arrivalTimeStation] of myself
+          if temp > 0 [ set arrivalTimeCar lput temp arrivalTimeCar ]
+        ]
+        set arrivalTimeStation 0
       ]
       [
         pursue nearestStation
         fd speed
         set energy energy - 1
+        set arrivalTimeStation arrivalTimeStation + 1
       ]
     ]
     if movement = 0 [
-      ;show "hola"
       timerCar item (numberStop - 1) tripTime
     ]
   ]
@@ -362,14 +371,24 @@ to go
             ;show numberOfLanes
             ifelse numberOfLanes > 0 [
               set numberOfLanes numberOfLanes - 1
+              ;;if position 1 do the assignment...
+              if  [inPosition] of myself = 0 [
+                set queueTimeCar lput [queueTimeStation] of myself queueTimeCar
+              ]
               ; charge EV
-              ask carsCharging [ set inPosition 1 ]
+              ask carsCharging [
+                set inPosition 1
+                set queueTimeStation 0
+              ]
               ;show numberOfLanes
             ]
             [
               ifelse count(carsCharging) - 2 < 0 [ set queueNumber 0 ]
               [ set queueNumber count(carsCharging) - 2 ]
-              ask carsCharging [ set waitingLane 1 ]
+              ask carsCharging [
+                set waitingLane 1
+                set queueTimeStation queueTimeStation + 1
+              ]
             ]
           ]
         ]
@@ -381,8 +400,20 @@ to go
     ;show carsCharging
   ]
   ;; update the phase and the global clock
+  if ticks > days * 350000 [
+    set days days + 1
+    next-day
+  ]
   next-phase
   tick
+end
+
+to next-day
+  ask cars [
+    set numberStop 0
+    set energy 50000
+  ]
+  carSpeed
 end
 
 to chargeCar
