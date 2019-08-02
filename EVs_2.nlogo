@@ -13,6 +13,8 @@ globals
   intersections ;; agentset containing the patches that are intersections
   roads         ;; agentset containing the patches that are roads
   days
+  cars-stations
+  initEnergy
 ]
 
 ; breeds for agents
@@ -45,6 +47,7 @@ cars-own [
   numberStop
   driver
   nearestStation
+  minEnergy
 ]
 
 stations-own [
@@ -54,6 +57,9 @@ stations-own [
   timeToCharge
   arrivalTimeCar
   queueTimeCar
+  idleTime
+  colorPlot
+  flag
 ]
 
 patches-own
@@ -116,10 +122,12 @@ end
 to setup-globals
   set phase 0
   set num-cars-stopped 0
+  set cars-stations 0
   ;set grid-x-inc world-width / 6
   ;set grid-y-inc world-height / 4
   set grid-x-inc world-width / 10
   set grid-y-inc world-height / 8
+  set initEnergy 30000
 
   ;; don't make acceleration 0.1 since we could get a rounding error and end up on a patch boundary
   set acceleration 0.099
@@ -170,12 +178,14 @@ to setup-stations
   set shape "lightning"
   set color red
   set size 1
-  put-on-empty-road
+  put-on-empty-intersection
   set numberOfBSS 5
   set numberOfLanes 2
-  set timeToCharge 20000
+  set timeToCharge 10000
   set arrivalTimeCar []
   set queueTimeCar []
+  set colorPlot one-of base-colors
+  set flag 0
   ;setxy random-xcor random-ycor
 end
 
@@ -186,7 +196,8 @@ to setup-cars ;; turtle procedure
   record-data
   set speed 0
   set wait-time 0
-  set energy 50000
+  set minEnergy 10000
+  set energy initEnergy
   set arrivalTimeStation 0
   set queueTimeStation 0
   set movement 1
@@ -207,14 +218,14 @@ to setup-cars ;; turtle procedure
     startFrom carHome
   ]
 
-  move-to min-one-of (roads in-radius 10) [distance myself]
+  ;move-to min-one-of (roads in-radius 10) [distance myself]
   ifelse intersection?
   [
     set dir-car random 3 ;; 0 -down, 1 -left, 2 -up, 3 -right
   ]
   [
     ; if the turtle is on a vertical road (rather than a horizontal one)
-    ifelse (floor((pxcor + max-pxcor - floor(grid-x-inc - 1)) mod grid-x-inc) = 0)
+    ifelse ((pxcor = min-pxcor) or floor((pxcor + max-pxcor - floor(grid-x-inc - 1)) mod grid-x-inc) = 0)
     [ set dir-car 0 ]
     [ set dir-car 3 ]
   ]
@@ -238,17 +249,17 @@ to setDriver
   set driver random 5
   let tempTrip []
   let tempTimes []
-  if driver = 0 [ set tempTrip (list schools markets parks) set tempTimes [ 50000 20000 10000 ] ]
-  if driver = 1 [ set tempTrip (list offices) set tempTimes [ 80000 ] ]
+  if driver = 0 [ set tempTrip (list schools markets parks) set tempTimes [ 25000 10000 50000 ] ]
+  if driver = 1 [ set tempTrip (list offices) set tempTimes [ 40000 ] ]
   if driver = 2 [
     set tempTrip shuffle (list houses schools offices offices markets stadiums parks )
-    set tempTimes [ 10000 10000 10000 10000 10000 10000 10000 ]
+    set tempTimes [ 5000 5000 5000 5000 5000 5000 5000 ]
   ]
   if driver = 3 [
     set tempTrip (list schools markets houses schools houses parks)
-    set tempTimes [ 10000 20000 40000 10000 30000 20000 ]
+    set tempTimes [ 5000 10000 20000 5000 15000 10000 ]
   ]
-  if driver = 4 [ set tempTrip (list offices) set tempTimes [ 100000 ] ]
+  if driver = 4 [ set tempTrip (list offices) set tempTimes [ 50000 ] ]
   createTrip tempTrip tempTimes
 end
 
@@ -269,7 +280,11 @@ end
 
 ;; Find a road patch without any turtles on it and place the turtle there.
 to put-on-empty-road  ;; turtle procedure
-  move-to one-of roads with [not any? turtles-on self]
+  move-to one-of roads with [not any? turtles-on self and not (pycor = min-pycor)]
+end
+
+to put-on-empty-intersection  ;; location of stations
+  move-to one-of intersections with [not any? turtles-on self and not (pycor = min-pycor)]
 end
 
 ;; keep track of the number of stopped turtles and the amount of time a turtle has been stopped
@@ -313,7 +328,7 @@ end
 ;; Run the simulation
 to go
 
-  identify-CarStations
+  ;identify-CarStations
   ;update-current
 
   ;; have the intersections change their color
@@ -325,7 +340,7 @@ to go
     if numberStop >= length trip [
       set speed 0
     ]
-    if movement = 1 and numberStop < length trip and energy > 20000 and isCharging = 0 [
+    if movement = 1 and numberStop < length trip and energy > minEnergy and isCharging = 0 [
       fd speed
       set energy energy - 1
       let tempLocation item numberStop trip
@@ -339,14 +354,17 @@ to go
         set wait-time ticks
       ]
     ]
-    if energy <= 20000 or isCharging = 1 [ ;; else
+    if energy <= minEnergy or isCharging = 1 [ ;; else
       ifelse [distance myself] of nearestStation < 1 [
         set speed 0
         set isCharging 1
         ;; process to obtain arrivalTimeCar and append it to list of the station
         ask nearestStation [
           let temp [arrivalTimeStation] of myself
-          if temp > 0 [ set arrivalTimeCar lput temp arrivalTimeCar ]
+          if temp > 0 [
+            set cars-stations cars-stations + 1
+            set arrivalTimeCar fput temp arrivalTimeCar
+          ]
         ]
         set arrivalTimeStation 0
       ]
@@ -364,38 +382,52 @@ to go
 
   ask stations [
     let carsCharging cars in-radius 1
-    if one-of carsCharging != nobody [
+    ifelse one-of carsCharging != nobody [
       ask carsCharging [
-        if isCharging = 1 and inPosition = 0 [
+        let cars-list reverse sort-on [queueTimeStation] carsCharging
+        foreach cars-list [ [i] ->
+          if [isCharging] of i = 1 and [inPosition] of i = 0 [
           ask nearestStation [
             ;show numberOfLanes
+            ;; this, verify...
+              ;tick
+              if flag = 0 [
+              set flag 1
             ifelse numberOfLanes > 0 [
               set numberOfLanes numberOfLanes - 1
               ;;if position 1 do the assignment...
-              if  [inPosition] of myself = 0 [
-                set queueTimeCar lput [queueTimeStation] of myself queueTimeCar
+              if  [inPosition] of i = 0 [
+                ;show "hola"
+                set queueTimeCar fput [queueTimeStation] of i queueTimeCar
               ]
               ; charge EV
-              ask carsCharging [
+              ask i [
                 set inPosition 1
                 set queueTimeStation 0
               ]
               ;show numberOfLanes
             ]
             [
-              ifelse count(carsCharging) - 2 < 0 [ set queueNumber 0 ]
-              [ set queueNumber count(carsCharging) - 2 ]
-              ask carsCharging [
+              ask i [
                 set waitingLane 1
                 set queueTimeStation queueTimeStation + 1
               ]
+              ifelse count(carsCharging) - 2 < 0 [ set queueNumber 0 ]
+              [ set queueNumber count(carsCharging) - 2 ]
             ]
+            ]
+              set flag 0
+;            ]
           ]
         ]
         if inPosition = 1 [
           chargeCar
         ]
       ]
+      ]
+    ]
+    [
+      set idleTime idleTime + 1
     ]
     ;show carsCharging
   ]
@@ -404,21 +436,20 @@ to go
     set days days + 1
     next-day
   ]
-  next-phase
   tick
 end
 
 to next-day
   ask cars [
     set numberStop 0
-    set energy 50000
+    set energy initEnergy
   ]
   carSpeed
 end
 
 to chargeCar
   set energy energy + 1
-  if energy > 49999 [
+  if energy > initEnergy [
     set isCharging 0
     set inPosition 0
     carSpeed
@@ -430,7 +461,7 @@ to chargeCar
 end
 
 to carSpeed
-  ask cars [ set speed 0.005 ]
+  ask cars [ set speed 0.01 ]
 end
 
 to timerCar [ limit ]
@@ -442,15 +473,15 @@ to timerCar [ limit ]
   carSpeed
 end
 
-;; cycles phase to the next appropriate value
-to next-phase
-  ;; The phase cycles from 0 to ticks-per-cycle, then starts over.
-  set phase phase + 1
-  if phase mod ticks-per-cycle = 0
-    [ set phase 0 ]
+to do-plots [list1 list2t]
+  clear-plot
+  let m 0
+  set-current-plot-pen "arrivalTime"
+  while [m < length list1 ] [
+    plotxy item m list2t item m list1
+    set m m + 1
+  ]
 end
-
-
 
 
 
@@ -501,13 +532,13 @@ to setup-grid
   ]
   create-houses 1 [
     set shape "house"
-    setxy (max-pxcor - 76.5) (max-pycor - 36.4)
+    setxy (max-pxcor - 76.5) (max-pycor - 36.5)
     set size 3
     set color white - 1
   ]
   create-houses 1 [
     set shape "house"
-    setxy (max-pxcor - 68.5) (max-pycor - 36.4)
+    setxy (max-pxcor - 68.5) (max-pycor - 36.5)
     set size 3
     set color white - 1
   ]
@@ -842,21 +873,6 @@ NIL
 1
 
 SLIDER
-15
-239
-187
-272
-speed-limit
-speed-limit
-0
-1
-0.0
-0
-1
-NIL
-HORIZONTAL
-
-SLIDER
 26
 309
 198
@@ -865,22 +881,7 @@ num-cars
 num-cars
 0
 100
-10.0
-1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-17
-368
-189
-401
-ticks-per-cycle
-ticks-per-cycle
-0
-100
-10.0
+30.0
 1
 1
 NIL
@@ -893,9 +894,31 @@ SWITCH
 492
 initialCars
 initialCars
-1
+0
 1
 -1000
+
+MONITOR
+274
+514
+458
+559
+NIL
+[numberOfLanes] of station 79
+17
+1
+11
+
+MONITOR
+259
+599
+443
+644
+NIL
+[numberOfLanes] of station 80
+17
+1
+11
 
 @#$#@#$#@
 ## WHAT IS IT?
