@@ -1,20 +1,16 @@
-;; grid of 40 x 20 using center;
+;; Luis Castillo
 
 globals
 [
   grid-x-inc               ;; the amount of patches in between two roads in the x direction
   grid-y-inc               ;; the amount of patches in between two roads in the y direction
-  acceleration             ;; tthe constant that controls how much a car speeds up or slows down by if
-                           ;; it is to accelerate or decelerate
   phase                    ;; keeps track of the phase
-  num-cars-stopped         ;; the number of cars that are stopped during a single pass thru the go procedure
-
   ;; patch agentsets
-  intersections ;; agentset containing the patches that are intersections
-  roads         ;; agentset containing the patches that are roads
-  days
+  intersections            ;; agentset containing the patches that are intersections
+  roads                    ;; agentset containing the patches that are roads
+  days                     ;; simulation days
   cars-stations
-  initEnergy
+  initEnergy               ;; initial Energy for cars
 ]
 
 ; breeds for agents
@@ -64,14 +60,12 @@ stations-own [
 
 patches-own
 [
-  intersection?  ;; true if the patch is at the intersection of two roads
+  intersection?   ;; true if the patch is at the intersection of two roads
   my-row          ;; the row of the intersection counting from the upper left corner of the
                   ;; world.  -1 for non-intersection patches.
   my-column       ;; the column of the intersection counting from the upper left corner of the
                   ;; world.  -1 for non-intersection patches.
   my-phase        ;; the phase for the intersection.  -1 for non-intersection patches.
-  auto?           ;; whether or not this intersection will switch automatically.
-                  ;; false for non-intersection patches.
 ]
 
 links-own
@@ -79,13 +73,10 @@ links-own
   carStation
 ]
 
-;;
-;; Setup's section
-;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;; Setup's section ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to setup
   clear-all
-  set days 1
   setup-grid
   setup-globals
   setup-patches
@@ -101,7 +92,7 @@ to setup
     stop
   ]
 
-  ;; Now create the turtles and have each created turtle call the functions setup-cars and set-car-color
+  ;; Now create the cars and stations
   create-cars num-cars
   [
     setup-cars
@@ -112,43 +103,30 @@ to setup
     setup-stations
   ]
 
-  ;; give the turtles an initial speed
-  carSpeed
-
+  carSpeed ;; give the cars an initial speed
   reset-ticks
 end
 
 ;; Initialize the global variables to appropriate values
 to setup-globals
   set phase 0
-  set num-cars-stopped 0
   set cars-stations 0
-  ;set grid-x-inc world-width / 6
-  ;set grid-y-inc world-height / 4
   set grid-x-inc world-width / 10
   set grid-y-inc world-height / 8
-  set initEnergy 30000
-
-  ;; don't make acceleration 0.1 since we could get a rounding error and end up on a patch boundary
-  set acceleration 0.099
+  set initEnergy 10000
+  set days 1
 end
 
-;; Make the patches have appropriate colors, set up the roads and intersections agentsets,
-;; and initialize the traffic lights to one setting
+;; set up the roads and intersections
 to setup-patches
   ;; initialize the patch-owned variables and color the patches to a base-color
   ask patches
   [
     set intersection? false
-    set auto? false
-    ;;set green-light-up? true
-    set my-row -1
-    set my-column -1
-    set my-phase -1
     set pcolor brown + 3
   ]
 
-  ;; initialize the global variables that hold patch agentsets
+  ;; draw the grid (blocks and roads)
   set roads patches with
     [(pxcor = min-pxcor) or (floor((pxcor + max-pxcor - floor(grid-x-inc - 1)) mod grid-x-inc) = 0) or
     (floor((pycor + max-pycor) mod grid-y-inc) = 0)]
@@ -156,21 +134,16 @@ to setup-patches
     [(pxcor = min-pxcor) or (floor((pxcor + max-pxcor - floor(grid-x-inc - 1)) mod grid-x-inc) = 0) and
     (floor((pycor + max-pycor) mod grid-y-inc) = 0)]
 
+  ;; draw the roads
   ask roads [ set pcolor white ]
   setup-intersections
 end
 
-;; Give the intersections appropriate values for the intersection?, my-row, and my-column
-;; patch variables.  Make all the traffic lights start off so that the lights are red
-;; horizontally and green vertically.
+;; Give the intersections appropriate values for the intersection?
 to setup-intersections
   ask intersections
   [
     set intersection? true
-    set my-phase 0
-    set auto? true
-    set my-row floor((pycor + max-pycor) / grid-y-inc)
-    set my-column floor((pxcor + max-pxcor) / grid-x-inc)
   ]
 end
 
@@ -178,6 +151,7 @@ to setup-stations
   set shape "lightning"
   set color red
   set size 1
+  ;setxy random-xcor random-ycor
   put-on-empty-intersection
   set numberOfBSS 5
   set numberOfLanes 2
@@ -186,17 +160,15 @@ to setup-stations
   set queueTimeCar []
   set colorPlot one-of base-colors
   set flag 0
-  ;setxy random-xcor random-ycor
 end
 
 ;; Initialize the turtle variables to appropriate values and place the turtle on an empty road patch.
 to setup-cars ;; turtle procedure
   set shape "car"
   set color blue
-  record-data
   set speed 0
   set wait-time 0
-  set minEnergy 10000
+  set minEnergy 2500
   set energy initEnergy
   set arrivalTimeStation 0
   set queueTimeStation 0
@@ -218,18 +190,17 @@ to setup-cars ;; turtle procedure
     startFrom carHome
   ]
 
-  ;move-to min-one-of (roads in-radius 10) [distance myself]
   ifelse intersection?
   [
     set dir-car random 3 ;; 0 -down, 1 -left, 2 -up, 3 -right
   ]
   [
-    ; if the turtle is on a vertical road (rather than a horizontal one)
+    ; if the car is on a vertical road (rather than a horizontal one)
     ifelse ((pxcor = min-pxcor) or floor((pxcor + max-pxcor - floor(grid-x-inc - 1)) mod grid-x-inc) = 0)
     [ set dir-car 0 ]
     [ set dir-car 3 ]
   ]
-  print dir-car
+  ;print dir-car
   if dir-car = 0
   [ set heading 180 ]
   if dir-car = 1
@@ -240,45 +211,43 @@ to setup-cars ;; turtle procedure
   [ set heading 90 ]
 end
 
-;;
-;; auxiliar functions
-;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; auxiliar functions ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to setDriver
-  ;; drivers: 0- professor, 1- business-man, 2- taxiDriver, 3- Nanny, 4- softwareDev
-  set driver random 5
+  ;; drivers: 0- professor, 1- business-man, 2- taxiDriver, 3- Nanny, 4- softwareDev, 5- football player
+  set driver random 6
   let tempTrip []
   let tempTimes []
-  if driver = 0 [ set tempTrip (list schools markets parks) set tempTimes [ 25000 10000 50000 ] ]
+  if driver = 0 [ set tempTrip (list schools markets parks) set tempTimes [ 25000 5000 7000 ] ]
   if driver = 1 [ set tempTrip (list offices) set tempTimes [ 40000 ] ]
   if driver = 2 [
-    set tempTrip shuffle (list houses schools offices offices markets stadiums parks )
-    set tempTimes [ 5000 5000 5000 5000 5000 5000 5000 ]
+    set tempTrip shuffle (list houses schools offices offices markets stadiums parks
+                               houses schools offices offices markets stadiums parks
+                               houses schools offices offices markets stadiums parks)
+    set tempTimes [ 500 500 500 500 500 500 500 500 500 500 500 500 500 500 500 500 500 500 500 500 500 ]
   ]
   if driver = 3 [
     set tempTrip (list schools markets houses schools houses parks)
-    set tempTimes [ 5000 10000 20000 5000 15000 10000 ]
+    set tempTimes [ 3000 7000 12000 2000 8000 8000 ]
   ]
-  if driver = 4 [ set tempTrip (list offices) set tempTimes [ 50000 ] ]
+  if driver = 4 [ set tempTrip shuffle (list parks offices) set tempTimes [ 23000 20000 ] ]
+  if driver = 5 [ set tempTrip (list stadiums markets) set tempTimes [ 30000 5000 ] ]
   createTrip tempTrip tempTimes
 end
 
 to createTrip [ targetTrip targetTime ]
-  ;; just to be sync with the trip variable in go procedure
-  ;set tripTime lput 0 tripTime
   foreach targetTrip [ [ a ] ->
     set trip lput one-of a trip
-    ;set tripTime lput item 2 a tripTime
   ]
-  set trip lput carHome trip
+  set trip lput carHome trip ;; driver home added at the end of each trip
   foreach targetTime [ [ a ] ->
     set tripTime lput a tripTime
   ]
-  set tripTime lput 0 tripTime
-
+  ;; just to be sync with the trip variable in go procedure
+  set tripTime lput 0 tripTime ;; trip time added for home, 0 minutes
 end
 
-;; Find a road patch without any turtles on it and place the turtle there.
+;; Find a road patch without any cars on it and place the car there.
 to put-on-empty-road  ;; turtle procedure
   move-to one-of roads with [not any? turtles-on self and not (pycor = min-pycor)]
 end
@@ -287,17 +256,7 @@ to put-on-empty-intersection  ;; location of stations
   move-to one-of intersections with [not any? turtles-on self and not (pycor = min-pycor)]
 end
 
-;; keep track of the number of stopped turtles and the amount of time a turtle has been stopped
-;; if its speed is 0
-to record-data  ;; turtle procedure
-  ifelse speed = 0
-  [
-    set num-cars-stopped num-cars-stopped + 1
-    set wait-time wait-time + 1
-  ]
-  [ set wait-time 0 ]
-end
-
+;; probably delete this function
 to identify-CarStations
   ask cars [
     create-links-from stations with [ color != blue ] in-radius 10 [
@@ -320,21 +279,44 @@ to startFrom [source]
   move-to source
 end
 
+to next-day
+  ask cars [
+    set numberStop 0
+    set energy initEnergy
+  ]
+  carSpeed
+end
 
-;;;;;;;;;;;;;;;;;;;;;;;;
-;; Runtime Procedures ;;
-;;;;;;;;;;;;;;;;;;;;;;;;
+to chargeCar
+  set energy energy + 10
+  if energy > initEnergy [
+    set isCharging 0
+    set inPosition 0
+    carSpeed
+    ask nearestStation [
+      set numberOfLanes numberOfLanes + 1
+      set queueNumber queueNumber - 1
+    ]
+  ]
+end
 
-;; Run the simulation
+to carSpeed
+  ask cars [ set speed 0.1 ]
+end
+
+to timerCar [ limit ]
+  set speed 0
+  if ticks - wait-time > limit
+  [
+    set movement 1
+  ]
+  carSpeed
+end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;; Main (runs the simulation) ;;;;;;;;;;;;;;;;;;;;;;;;;
 to go
 
   ;identify-CarStations
-  ;update-current
-
-  ;; have the intersections change their color
-  ;set-signals
-  set num-cars-stopped 0
-
   ask cars [
     set nearestStation min-one-of stations [distance myself]
     if numberStop >= length trip [
@@ -387,105 +369,61 @@ to go
         let cars-list reverse sort-on [queueTimeStation] carsCharging
         foreach cars-list [ [i] ->
           if [isCharging] of i = 1 and [inPosition] of i = 0 [
-          ask nearestStation [
-            ;show numberOfLanes
-            ;; this, verify...
-              ;tick
+            ask nearestStation [
               if flag = 0 [
-              set flag 1
-            ifelse numberOfLanes > 0 [
-              set numberOfLanes numberOfLanes - 1
-              ;;if position 1 do the assignment...
-              if  [inPosition] of i = 0 [
-                ;show "hola"
-                set queueTimeCar fput [queueTimeStation] of i queueTimeCar
+                set flag 1
+                ifelse numberOfLanes > 0 [
+                  set numberOfLanes numberOfLanes - 1
+                  if  [inPosition] of i = 0 [
+                    set queueTimeCar fput [queueTimeStation] of i queueTimeCar
+                  ]
+                  ; charge EV
+                  ask i [
+                    set inPosition 1
+                    set queueTimeStation 0
+                  ]
+                  ;show numberOfLanes
+                ]
+                [
+                  ask i [
+                    set waitingLane 1
+                    set queueTimeStation queueTimeStation + 1
+                  ]
+                  ifelse count(carsCharging) - 2 < 0 [ set queueNumber 0 ]
+                  [ set queueNumber count(carsCharging) - 2 ]
+                ]
               ]
-              ; charge EV
-              ask i [
-                set inPosition 1
-                set queueTimeStation 0
-              ]
-              ;show numberOfLanes
-            ]
-            [
-              ask i [
-                set waitingLane 1
-                set queueTimeStation queueTimeStation + 1
-              ]
-              ifelse count(carsCharging) - 2 < 0 [ set queueNumber 0 ]
-              [ set queueNumber count(carsCharging) - 2 ]
-            ]
-            ]
               set flag 0
-;            ]
+            ]
+          ]
+          if inPosition = 1 [
+            chargeCar
           ]
         ]
-        if inPosition = 1 [
-          chargeCar
-        ]
-      ]
       ]
     ]
     [
       set idleTime idleTime + 1
     ]
-    ;show carsCharging
   ]
   ;; update the phase and the global clock
   if ticks > days * 350000 [
     set days days + 1
     next-day
+    reinforcement
   ]
   tick
 end
 
-to next-day
-  ask cars [
-    set numberStop 0
-    set energy initEnergy
-  ]
-  carSpeed
-end
+;;;;;;;;;;;;;;;;;;;;;;; Reinforcement Learning section ;;;;;;;;;;;;;;;;;;;;;;;;;
 
-to chargeCar
-  set energy energy + 1
-  if energy > initEnergy [
-    set isCharging 0
-    set inPosition 0
-    carSpeed
-    ask nearestStation [
-      set numberOfLanes numberOfLanes + 1
-      set queueNumber queueNumber - 1
-    ]
-  ]
-end
-
-to carSpeed
-  ask cars [ set speed 0.01 ]
-end
-
-to timerCar [ limit ]
-  set speed 0
-  if ticks - wait-time > limit
-  [
-    set movement 1
-  ]
-  carSpeed
-end
-
-to do-plots [list1 list2t]
-  clear-plot
-  let m 0
-  set-current-plot-pen "arrivalTime"
-  while [m < length list1 ] [
-    plotxy item m list2t item m list1
-    set m m + 1
-  ]
+to reinforcement
+  ;
 end
 
 
 
-;; buildings...
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; buildings in the grid ;;;;;;;;;;;;;;;;;;;;;;;;;;
 to setup-grid
   ;; houses
   create-houses 1 [
@@ -584,7 +522,6 @@ to setup-grid
     set size 3
     set color white - 1
   ]
-
   create-houses 1 [
     set shape "house"
     setxy (max-pxcor - 4) (max-pycor - 16.5)
@@ -808,7 +745,6 @@ to setup-grid
     set color 25
   ]
   ;;;;
-
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
