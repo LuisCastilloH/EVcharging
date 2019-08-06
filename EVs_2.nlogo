@@ -18,6 +18,7 @@ globals
   maxLanes
   minBSS
   maxBSS
+  stopRL
 ]
 
 ; breeds for agents
@@ -135,13 +136,14 @@ to setup-globals
   set cars-stations 0
   set grid-x-inc world-width / 10
   set grid-y-inc world-height / 8
-  set initEnergy 4000
+  set initEnergy 500
   set days 1
-  set secondsDay 86400
+  set secondsDay 5760;86400
   set minLanes 2
   set maxLanes 4
   set minBSS 20
   set maxBSS 22
+  set stopRL 1
 end
 
 ;; set up the roads and intersections
@@ -183,7 +185,7 @@ to setup-stations
   set numberOfBSS 20
   set numberOfBSSFixed 20
   set numberOfLanes 3
-  set numberOfLanesFixed 2
+  set numberOfLanesFixed 3
   set timeToCharge 10000
   set arrivalTimeCar []
   set queueTimeCar []
@@ -199,7 +201,7 @@ to setup-cars ;; turtle procedure
   set color blue
   set speed 0
   set wait-time 0
-  set minEnergy 1000
+  set minEnergy 100
   set energy initEnergy
   set arrivalTimeStation 0
   set queueTimeStation 0
@@ -246,23 +248,24 @@ end
 
 to setDriver
   ;; drivers: 0- professor, 1- business-man, 2- taxiDriver, 3- Nanny, 4- softwareDev, 5- football player
+  ;; 1440 minutes per day , 1/4 minute per tick -> 5760, 2800 --> 12 hrs
   set driver random 6
   let tempTrip []
   let tempTimes []
-  if driver = 0 [ set tempTrip (list schools markets parks) set tempTimes [ 20000 3000 7000 ] ]
-  if driver = 1 [ set tempTrip (list offices) set tempTimes [ 30000 ] ]
+  if driver = 0 [ set tempTrip (list schools markets parks) set tempTimes [ 1000 400 700 ] ]
+  if driver = 1 [ set tempTrip (list offices) set tempTimes [ 1600 ] ]
   if driver = 2 [
     set tempTrip shuffle (list houses schools offices offices markets stadiums parks
                                houses schools offices offices markets stadiums parks
                                houses schools offices offices markets stadiums parks)
-    set tempTimes [ 500 500 500 500 500 500 500 500 500 500 500 500 500 500 500 500 500 500 500 500 500 ]
+    set tempTimes [ 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 ]
   ]
   if driver = 3 [
     set tempTrip (list schools markets houses schools houses parks)
-    set tempTimes [ 2000 5000 8000 1000 6000 6000 ]
+    set tempTimes [ 50 200 500 50 700 400 ]
   ]
-  if driver = 4 [ set tempTrip shuffle (list parks offices) set tempTimes [ 15000 10000 ] ]
-  if driver = 5 [ set tempTrip (list stadiums markets) set tempTimes [ 20000 5000 ] ]
+  if driver = 4 [ set tempTrip shuffle (list parks offices) set tempTimes [ 900 1000 ] ]
+  if driver = 5 [ set tempTrip (list stadiums markets) set tempTimes [ 1500 300 ] ]
   createTrip tempTrip tempTimes
 end
 
@@ -337,7 +340,7 @@ to chargeCar
 end
 
 to carSpeed
-  ask cars [ set speed 0.1 ]
+  ask cars [ set speed 1 ]
 end
 
 to timerCar [ limit ]
@@ -394,7 +397,7 @@ to go
         set arrivalTimeStation arrivalTimeStation + 1
       ]
     ]
-    if movement = 0 [
+    if movement = 0 and numberStop > 0 [
       timerCar item (numberStop - 1) tripTime
     ]
   ]
@@ -451,6 +454,10 @@ to go
     next-day
     ;; stop idle time
   ]
+  ;; procedure to check if all the table has non-zeros
+  set stopRL 1
+  check-Qtable
+  if stopRL > 0 [ stop ]
   tick
 end
 
@@ -487,7 +494,6 @@ to reinforcement
   ;; all variables are from stations..
   ;; variables to observe --> queueTimeCar, idleTime
   ;; variables to change --> numberOfLanes, numberOfBSS
-  if days > 5 [ stop ]
   ask stations [
     let Qnew 1
     let next 1
@@ -505,6 +511,11 @@ to reinforcement
       numberOfBSSFixed > maxBSS [ set reward -10000 set numberOfBSSFixed maxBSS ]
       [ set reward (0 - mean(queueTimeCar) + secondsDay / idleTime - numberOfBSS / 10 + (available - 1) * 10000 ) ]
     )
+    ;; reinitiliaze station variables
+    set idleTime 0
+    set arrivalTimeCar []
+    set queueTimeCar []
+
     let QQnew table:get Q (word "s" (next)) ;;next state
     set QQnew max QQnew  ;; maximum next state
     set Qnew Qnew + step-size * (reward + discount * QQnew - Qnew) ;--perform Q-Learning
@@ -548,7 +559,17 @@ to doActions [actionX]
   )
 end
 
-
+to check-Qtable
+  ask stations [
+    let temp 0
+    let i 0
+    while [ i < 9 ] [
+      set temp table:get Q (word "s" i)
+      if member? 0 temp [ set stopRL 0 ]
+      set i i + 1
+    ]
+  ]
+end
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; buildings in the grid ;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -945,7 +966,7 @@ num-cars
 num-cars
 0
 100
-30.0
+50.0
 1
 1
 NIL
@@ -965,21 +986,32 @@ initialCars
 MONITOR
 274
 514
-458
+395
 559
-NIL
-[numberOfLanes] of station 79
+lanes of station 1
+[numberOfLanes] of station (num-cars + 49)
 17
 1
 11
 
 MONITOR
-479
-511
-663
-556
+411
+514
+533
+559
+lanes of station 2
+[numberOfLanes] of station (num-cars + 49)
+17
+1
+11
+
+MONITOR
+59
+387
+116
+432
 NIL
-[numberOfLanes] of station 80
+days
 17
 1
 11
