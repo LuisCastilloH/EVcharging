@@ -1,5 +1,7 @@
 ;; Luis Castillo
 
+extensions [table]
+
 globals
 [
   grid-x-inc               ;; the amount of patches in between two roads in the x direction
@@ -9,8 +11,13 @@ globals
   intersections            ;; agentset containing the patches that are intersections
   roads                    ;; agentset containing the patches that are roads
   days                     ;; simulation days
+  secondsDay
   cars-stations
   initEnergy               ;; initial Energy for cars
+  minLanes
+  maxLanes
+  minBSS
+  maxBSS
 ]
 
 ; breeds for agents
@@ -48,7 +55,9 @@ cars-own [
 
 stations-own [
   numberOfBSS
+  numberOfBSSFixed
   numberOfLanes
+  numberOfLanesFixed
   queueNumber
   timeToCharge
   arrivalTimeCar
@@ -56,6 +65,18 @@ stations-own [
   idleTime
   colorPlot
   flag
+  ;; RL variables
+  num-episodes
+  exploration
+  reward
+  discount
+  step-size
+  Q
+  states
+  actions
+  action
+  state
+  switch
 ]
 
 patches-own
@@ -102,6 +123,7 @@ to setup
   [
     setup-stations
   ]
+  setup-reinforcement
 
   carSpeed ;; give the cars an initial speed
   reset-ticks
@@ -113,8 +135,13 @@ to setup-globals
   set cars-stations 0
   set grid-x-inc world-width / 10
   set grid-y-inc world-height / 8
-  set initEnergy 10000
+  set initEnergy 4000
   set days 1
+  set secondsDay 86400
+  set minLanes 2
+  set maxLanes 4
+  set minBSS 20
+  set maxBSS 22
 end
 
 ;; set up the roads and intersections
@@ -153,13 +180,17 @@ to setup-stations
   set size 1
   ;setxy random-xcor random-ycor
   put-on-empty-intersection
-  set numberOfBSS 5
-  set numberOfLanes 2
+  set numberOfBSS 20
+  set numberOfBSSFixed 20
+  set numberOfLanes 3
+  set numberOfLanesFixed 2
   set timeToCharge 10000
   set arrivalTimeCar []
   set queueTimeCar []
   set colorPlot one-of base-colors
   set flag 0
+  set state 0
+  set switch 1
 end
 
 ;; Initialize the turtle variables to appropriate values and place the turtle on an empty road patch.
@@ -168,7 +199,7 @@ to setup-cars ;; turtle procedure
   set color blue
   set speed 0
   set wait-time 0
-  set minEnergy 2500
+  set minEnergy 1000
   set energy initEnergy
   set arrivalTimeStation 0
   set queueTimeStation 0
@@ -218,8 +249,8 @@ to setDriver
   set driver random 6
   let tempTrip []
   let tempTimes []
-  if driver = 0 [ set tempTrip (list schools markets parks) set tempTimes [ 25000 5000 7000 ] ]
-  if driver = 1 [ set tempTrip (list offices) set tempTimes [ 40000 ] ]
+  if driver = 0 [ set tempTrip (list schools markets parks) set tempTimes [ 20000 3000 7000 ] ]
+  if driver = 1 [ set tempTrip (list offices) set tempTimes [ 30000 ] ]
   if driver = 2 [
     set tempTrip shuffle (list houses schools offices offices markets stadiums parks
                                houses schools offices offices markets stadiums parks
@@ -228,10 +259,10 @@ to setDriver
   ]
   if driver = 3 [
     set tempTrip (list schools markets houses schools houses parks)
-    set tempTimes [ 3000 7000 12000 2000 8000 8000 ]
+    set tempTimes [ 2000 5000 8000 1000 6000 6000 ]
   ]
-  if driver = 4 [ set tempTrip shuffle (list parks offices) set tempTimes [ 23000 20000 ] ]
-  if driver = 5 [ set tempTrip (list stadiums markets) set tempTimes [ 30000 5000 ] ]
+  if driver = 4 [ set tempTrip shuffle (list parks offices) set tempTimes [ 15000 10000 ] ]
+  if driver = 5 [ set tempTrip (list stadiums markets) set tempTimes [ 20000 5000 ] ]
   createTrip tempTrip tempTimes
 end
 
@@ -284,6 +315,10 @@ to next-day
     set numberStop 0
     set energy initEnergy
   ]
+  ask stations [
+    set numberOfBSS numberOfBSSFixed
+    set numberOfLanes numberOfLanesFixed
+  ]
   carSpeed
 end
 
@@ -295,6 +330,7 @@ to chargeCar
     carSpeed
     ask nearestStation [
       set numberOfLanes numberOfLanes + 1
+      set numberOfBSS numberOfBSS - 1
       set queueNumber queueNumber - 1
     ]
   ]
@@ -315,10 +351,11 @@ end
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;; Main (runs the simulation) ;;;;;;;;;;;;;;;;;;;;;;;;;
 to go
-
+  ;; stop if there is no more stock of batteries...
+  if (all? stations [numberOfBSS <= 0]) [stop]
   ;identify-CarStations
   ask cars [
-    set nearestStation min-one-of stations [distance myself]
+    set nearestStation min-one-of stations with [numberOfBSS > 0] [distance myself]
     if numberStop >= length trip [
       set speed 0
     ]
@@ -407,19 +444,110 @@ to go
     ]
   ]
   ;; update the phase and the global clock
-  if ticks > days * 350000 [
-    set days days + 1
-    next-day
+  if ticks > days * secondsDay [
     reinforcement
+    set days days + 1
+    show days
+    next-day
+    ;; stop idle time
   ]
   tick
 end
 
 ;;;;;;;;;;;;;;;;;;;;;;; Reinforcement Learning section ;;;;;;;;;;;;;;;;;;;;;;;;;
+to setup-reinforcement
+  ask stations [
+    let i 0
+    let j 0
+    set Q table:make
+    while [ i < 9 ] [
+      table:put Q (word "s" i) [ 0 0 0 0 ]
+      set i i + 1
+    ]
+    set exploration 0.3
+    set discount 0.6
+    set step-size 0.1
+    set actions [ 0 1 2 3 ] ;;0- add lane, 1- remove lane, 2- add battery, 3- remove battery
+    set action 0
+    ;; create table of states...
+    set states table:make
+    table:put states (word "s0") [ 1 0 3 0 ]
+    table:put states (word "s1") [ 2 0 4 1 ]
+    table:put states (word "s2") [ 2 1 5 2 ]
+    table:put states (word "s3") [ 4 3 6 0 ]
+    table:put states (word "s4") [ 5 3 7 1 ]
+    table:put states (word "s5") [ 5 4 8 2 ]
+    table:put states (word "s6") [ 7 6 6 3 ]
+    table:put states (word "s7") [ 8 6 7 4 ]
+    table:put states (word "s8") [ 8 7 8 5 ]
+  ]
+end
 
 to reinforcement
-  ;
+  ;; all variables are from stations..
+  ;; variables to observe --> queueTimeCar, idleTime
+  ;; variables to change --> numberOfLanes, numberOfBSS
+  if days > 5 [ stop ]
+  ask stations [
+    let Qnew 1
+    let next 1
+    set next table:get states (word "s" state)
+    set next item action next ;; next state
+    set Qnew table:get Q (word "s" state)
+    set Qnew item action Qnew ;; get Q(s,a)
+
+    let available 1
+    if numberOfBSS <= 0 [ set available 0 ]
+    ;; rewards for not desired states
+    (ifelse numberOfLanesFixed < minLanes [ set reward -10000 set numberOfLanesFixed minLanes ]
+      numberOfLanesFixed > maxLanes [ set reward -10000 set numberOfLanesFixed maxLanes ]
+      numberOfBSSFixed < minBSS [ set reward -10000 set numberOfBSSFixed minBSS ]
+      numberOfBSSFixed > maxBSS [ set reward -10000 set numberOfBSSFixed maxBSS ]
+      [ set reward (0 - mean(queueTimeCar) + secondsDay / idleTime - numberOfBSS / 10 + (available - 1) * 10000 ) ]
+    )
+    let QQnew table:get Q (word "s" (next)) ;;next state
+    set QQnew max QQnew  ;; maximum next state
+    set Qnew Qnew + step-size * (reward + discount * QQnew - Qnew) ;--perform Q-Learning
+    show reward
+    set Qnew precision Qnew 3
+    let temp table:get Q (word "s" state)
+    set temp replace-item action temp Qnew
+    table:put Q (word "s" state) temp
+    set state next ;; set next state
+
+    ifelse random-float 1 < exploration [
+      ;;explore: select a random action
+      set action one-of actions ; pick random action
+      ;; change the variables (do action)
+      doActions action
+      ;; run a day
+      ;;
+      ;set switch switch * -1
+      show "exploration"
+    ]
+    [
+      ;; exploit: select the action with max value (future reward)
+      set temp table:get Q (word "s" state)
+      set action position max temp temp ;; maximum action
+      ;; change the variables (do action)
+      doActions action
+      ;; run a day
+      ;;
+      ;set switch switch * -1
+      show "exploitation"
+    ]
+  ]
 end
+
+to doActions [actionX]
+  (ifelse actionX = 0 [ set numberOfLanesFixed numberOfLanesFixed + 1 show "action0" ]
+    actionX = 1 [ set numberOfLanesFixed numberOfLanesFixed - 1 show "action1" ]
+    actionX = 2 [ set numberOfBSSFixed numberOfBSSFixed + 1 show "action2" ]
+    actionX = 3 [ set numberOfBSSFixed numberOfBSSFixed - 1 show "action3" ]
+    [show "nada"]
+  )
+end
+
 
 
 
@@ -846,10 +974,10 @@ NIL
 11
 
 MONITOR
-259
-599
-443
-644
+479
+511
+663
+556
 NIL
 [numberOfLanes] of station 80
 17
