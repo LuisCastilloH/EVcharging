@@ -34,6 +34,12 @@ breed [ carParks carPark ]
 breed [ stadiums stadium ]
 breed [ schools school ]
 
+breed [ intersectionRs intersection ]
+
+intersectionRs-own [
+  iterations
+]
+
 cars-own [
   energy
   arrivalTimeStation
@@ -311,9 +317,11 @@ end
 
 to startFrom [source]
   move-to source
+  move-to min-one-of roads with [not any? turtles-on self and not (pycor = min-pycor)] [distance source]
+  ;min-one-of stations with [numberOfBSS > 0] [distance myself]
 end
 
-to next-day
+to next-day-RL
   ask cars [
     set numberStop 0
     set energy initEnergy
@@ -321,6 +329,20 @@ to next-day
   ask stations [
     set numberOfBSS numberOfBSSFixed
     set numberOfLanes numberOfLanesFixed
+  ]
+  carSpeed
+end
+
+to next-day-analysis
+  ask cars [
+    setup-cars
+  ]
+  ask stations [
+    set numberOfBSS numberOfBSSFixed
+    set numberOfLanes numberOfLanesFixed
+    set idleTime 0
+    set arrivalTimeCar []
+    set queueTimeCar []
   ]
   carSpeed
 end
@@ -370,7 +392,7 @@ to go
       set label-color green
       set label tempLocation
       pursue tempLocation
-      if [distance myself] of tempLocation < 3.1 [
+      if [distance myself] of tempLocation < 3.1 or ([distance myself] of tempLocation < 4.4 and ycor = -20 ) [
         set numberStop numberStop + 1
         set movement 0
         set wait-time ticks
@@ -448,16 +470,23 @@ to go
   ]
   ;; update the phase and the global clock
   if ticks > days * secondsDay [
-    reinforcement
     set days days + 1
-    show days
-    next-day
-    ;; stop idle time
+    ifelse Mode = "RL" [
+      reinforcement
+      next-day-RL
+    ]
+    [
+      ;; analysis
+      next-day-analysis
+    ]
   ]
   ;; procedure to check if all the table has non-zeros
   set stopRL 1
   check-Qtable
-  if stopRL > 0 [ stop ]
+  if stopRL > 0 [
+    stop
+    bestConfig
+  ]
   tick
 end
 
@@ -569,6 +598,23 @@ to check-Qtable
       set i i + 1
     ]
   ]
+end
+
+to bestConfig
+  let maximum -999999
+  let indexState 0
+  ask stations [
+    let temp 0
+    let i 0
+    while [ i < 9 ] [
+      set temp table:get Q (word "s" i)
+      set temp max temp
+      if temp > maximum [ set maximum temp set indexState i ]
+      set i i + 1
+    ]
+  ]
+  show indexState
+  show maximum
 end
 
 
@@ -1015,6 +1061,16 @@ days
 17
 1
 11
+
+CHOOSER
+40
+253
+178
+298
+Mode
+Mode
+"locations" "RL"
+0
 
 @#$#@#$#@
 ## WHAT IS IT?
