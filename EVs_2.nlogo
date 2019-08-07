@@ -180,6 +180,9 @@ to setup-intersections
   [
     set intersection? true
   ]
+;  foreach intersections [ i ->
+;    create-intersectionRs i
+;  ]
 end
 
 to setup-stations
