@@ -34,12 +34,6 @@ breed [ carParks carPark ]
 breed [ stadiums stadium ]
 breed [ schools school ]
 
-breed [ intersectionRs intersection ]
-
-intersectionRs-own [
-  iterations
-]
-
 cars-own [
   energy
   arrivalTimeStation
@@ -58,12 +52,13 @@ cars-own [
   driver
   nearestStation
   minEnergy
+  intersectionFlag
 ]
 
 stations-own [
   numberOfBSS
-  numberOfBSSFixed
   numberOfLanes
+  numberOfBSSFixed
   numberOfLanesFixed
   queueNumber
   timeToCharge
@@ -94,6 +89,8 @@ patches-own
   my-column       ;; the column of the intersection counting from the upper left corner of the
                   ;; world.  -1 for non-intersection patches.
   my-phase        ;; the phase for the intersection.  -1 for non-intersection patches.
+  iterations      ;; cars go through
+  iterationsN     ;; nearest when cars start looking
 ]
 
 links-own
@@ -147,8 +144,8 @@ to setup-globals
   set secondsDay 5760;86400
   set minLanes 2
   set maxLanes 4
-  set minBSS 20
-  set maxBSS 22
+  set minBSS 30
+  set maxBSS 32
   set stopRL 1
 end
 
@@ -159,6 +156,7 @@ to setup-patches
   [
     set intersection? false
     set pcolor brown + 3
+    set iterations 0
   ]
 
   ;; draw the grid (blocks and roads)
@@ -180,9 +178,6 @@ to setup-intersections
   [
     set intersection? true
   ]
-;  foreach intersections [ i ->
-;    create-intersectionRs i
-;  ]
 end
 
 to setup-stations
@@ -191,13 +186,14 @@ to setup-stations
   set size 1
   ;setxy random-xcor random-ycor
   put-on-empty-intersection
-  set numberOfBSS 20
-  set numberOfBSSFixed 20
+  set numberOfBSS minBSS
+  set numberOfBSSFixed minBSS
   set numberOfLanes 3
   set numberOfLanesFixed 3
   set timeToCharge 10000
   set arrivalTimeCar []
   set queueTimeCar []
+  set idleTime 0
   set colorPlot one-of base-colors
   set flag 0
   set state 0
@@ -223,6 +219,7 @@ to setup-cars ;; turtle procedure
   set tripTime []
   setDriver
   set numberStop 0
+  set intersectionFlag 0
 
   ifelse (initialCars)
   [
@@ -315,6 +312,10 @@ to pursue [ target ]
   [
     face target
     set heading first sort-by [ [?1 ?2] -> abs(?1 - heading) < abs(?2 - heading)] [0 90 180 270]
+    ;; for the analysis
+    ask patch-here [
+      set iterations iterations + 1
+    ]
   ]
 end
 
@@ -341,11 +342,7 @@ to next-day-analysis
     setup-cars
   ]
   ask stations [
-    set numberOfBSS numberOfBSSFixed
-    set numberOfLanes numberOfLanesFixed
-    set idleTime 0
-    set arrivalTimeCar []
-    set queueTimeCar []
+    setup-stations
   ]
   carSpeed
 end
@@ -380,7 +377,7 @@ end
 ;;;;;;;;;;;;;;;;;;;;;;;;;; Main (runs the simulation) ;;;;;;;;;;;;;;;;;;;;;;;;;
 to go
   ;; stop if there is no more stock of batteries...
-  if (all? stations [numberOfBSS <= 0]) [stop]
+  if (all? stations [numberOfBSS <= 0]) [show "no more batteries" stop]
   ;identify-CarStations
   ask cars [
     set nearestStation min-one-of stations with [numberOfBSS > 0] [distance myself]
@@ -405,6 +402,7 @@ to go
       ifelse [distance myself] of nearestStation < 1 [
         set speed 0
         set isCharging 1
+        set intersectionFlag 0
         ;; process to obtain arrivalTimeCar and append it to list of the station
         ask nearestStation [
           let temp [arrivalTimeStation] of myself
@@ -416,6 +414,12 @@ to go
         set arrivalTimeStation 0
       ]
       [
+        if intersectionFlag = 0 [
+          ask min-one-of intersections [distance myself] [
+            set iterationsN iterationsN + 1
+          ]
+          set intersectionFlag 1
+        ]
         pursue nearestStation
         fd speed
         set energy energy - 1
@@ -477,18 +481,22 @@ to go
     ifelse Mode = "RL" [
       reinforcement
       next-day-RL
+      ;; procedure to check if all the table has non-zeros
+      set stopRL 1
+      check-Qtable
+      if stopRL > 0 [
+        stop
+        bestConfig
+      ]
     ]
     [
       ;; analysis
+      if days > 1000 [
+        busiestIntersection
+        stop
+      ]
       next-day-analysis
     ]
-  ]
-  ;; procedure to check if all the table has non-zeros
-  set stopRL 1
-  check-Qtable
-  if stopRL > 0 [
-    stop
-    bestConfig
   ]
   tick
 end
@@ -618,6 +626,25 @@ to bestConfig
   ]
   show indexState
   show maximum
+end
+
+to busiestIntersection
+  let maximum 0
+  let location 0
+  let maximumN 0
+  let locationN 0
+  let tempp max-n-of 1 patches [iterations]
+  set maximum [iterations] of tempp
+  set location [self] of tempp
+  let temppp max-n-of 1 patches [iterationsN]
+  set maximumN [iterationsN] of temppp
+  set locationN [self] of temppp
+  show "Busiest"
+  show location
+  show maximum
+  show "Nearest"
+  show locationN
+  show maximumN
 end
 
 
@@ -775,6 +802,60 @@ to setup-grid
   create-parks 1 [
     set shape "tree"
     setxy (max-pxcor - 59.5) (max-pycor - 11.5)
+    set size 3
+    set color 65
+  ]
+  create-parks 1 [
+    set shape "tree"
+    setxy (max-pxcor - 59.5) (max-pycor - 36.5)
+    set size 3
+    set color 65
+  ]
+  create-parks 1 [
+    set shape "tree"
+    setxy (max-pxcor - 59.5) (max-pycor - 31.5)
+    set size 3
+    set color 65
+  ]
+  create-parks 1 [
+    set shape "tree"
+    setxy (max-pxcor - 59.5) (max-pycor - 1.5)
+    set size 3
+    set color 65
+  ]
+  create-parks 1 [
+    set shape "tree"
+    setxy (max-pxcor - 59.5) (max-pycor - 6.5)
+    set size 3
+    set color 65
+  ]
+  create-parks 1 [
+    set shape "tree"
+    setxy (max-pxcor - 20) (max-pycor - 36.5)
+    set size 3
+    set color 65
+  ]
+  create-parks 1 [
+    set shape "tree"
+    setxy (max-pxcor - 20) (max-pycor - 31.5)
+    set size 3
+    set color 65
+  ]
+  create-parks 1 [
+    set shape "tree"
+    setxy (max-pxcor - 20) (max-pycor - 1.5)
+    set size 3
+    set color 65
+  ]
+  create-parks 1 [
+    set shape "tree"
+    setxy (max-pxcor - 20) (max-pycor - 6.5)
+    set size 3
+    set color 65
+  ]
+    create-schools 1 [
+    set shape "tree"
+    setxy (max-pxcor - 12) (max-pycor - 11.5)
     set size 3
     set color 65
   ]
@@ -942,6 +1023,12 @@ to setup-grid
     set size 3
     set color 25
   ]
+  create-stadiums 1 [
+    set shape "ball basketball"
+    setxy (max-pxcor - 52) (max-pycor - 6.5)
+    set size 3
+    set color 25
+  ]
   ;;;;
 end
 @#$#@#$#@
@@ -1038,7 +1125,7 @@ MONITOR
 395
 559
 lanes of station 1
-[numberOfLanes] of station (num-cars + 49)
+[numberOfLanes] of station (num-cars + 59)
 17
 1
 11
@@ -1049,7 +1136,7 @@ MONITOR
 533
 559
 lanes of station 2
-[numberOfLanes] of station (num-cars + 49)
+[numberOfLanes] of station (num-cars + 60)
 17
 1
 11
@@ -1073,7 +1160,7 @@ CHOOSER
 Mode
 Mode
 "locations" "RL"
-0
+1
 
 @#$#@#$#@
 ## WHAT IS IT?
