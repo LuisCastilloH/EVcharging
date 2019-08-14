@@ -19,6 +19,14 @@ globals
   minBSS
   maxBSS
   stopRL
+  location
+  locationN
+  driver0
+  driver1
+  driver2
+  driver3
+  driver4
+  driver5
 ]
 
 ; breeds for agents
@@ -79,6 +87,8 @@ stations-own [
   action
   state
   switch
+  available
+  finalState
 ]
 
 patches-own
@@ -128,6 +138,14 @@ to setup
     setup-stations
   ]
   setup-reinforcement
+;  ask station 110 [
+;    set numberOfBSS 24;numberOfBSSFixed
+;    set numberOfLanes 3;numberOfLanesFixed
+;  ]
+;  ask station 109 [
+;    set numberOfBSS 20;numberOfBSSFixed
+;    set numberOfLanes 4;numberOfLanesFixed
+;  ]
 
   carSpeed ;; give the cars an initial speed
   reset-ticks
@@ -144,9 +162,15 @@ to setup-globals
   set secondsDay 5760;86400
   set minLanes 2
   set maxLanes 4
-  set minBSS 30
-  set maxBSS 32
+  set minBSS 40
+  set maxBSS 55
   set stopRL 1
+  set driver0 0
+  set driver1 0
+  set driver2 0
+  set driver3 0
+  set driver4 0
+  set driver5 0
 end
 
 ;; set up the roads and intersections
@@ -186,9 +210,13 @@ to setup-stations
   set size 1
   ;setxy random-xcor random-ycor
   put-on-empty-intersection
+  (ifelse RLMode = "normal" [ set numberOfBSS minBSS set numberOfLanes 3 ]
+    RLMode = "min" [ set numberOfBSS minBSS set numberOfLanes minLanes ]
+    RLMode = "max" [ set numberOfBSS maxBSS set numberOfLanes maxLanes ]
+  )
   set numberOfBSS minBSS
   set numberOfBSSFixed minBSS
-  set numberOfLanes 3
+  set numberOfLanes 2;3
   set numberOfLanesFixed 3
   set timeToCharge 10000
   set arrivalTimeCar []
@@ -206,7 +234,7 @@ to setup-cars ;; turtle procedure
   set color blue
   set speed 0
   set wait-time 0
-  set minEnergy 100
+  set minEnergy 75 + ((random 5) * 25) ;; minEnergy between 75 and 175
   set energy initEnergy
   set arrivalTimeStation 0
   set queueTimeStation 0
@@ -231,7 +259,7 @@ to setup-cars ;; turtle procedure
 
   ifelse intersection?
   [
-    set dir-car random 3 ;; 0 -down, 1 -left, 2 -up, 3 -right
+    set dir-car random 4 ;; 0 -down, 1 -left, 2 -up, 3 -right
   ]
   [
     ; if the car is on a vertical road (rather than a horizontal one)
@@ -258,20 +286,22 @@ to setDriver
   set driver random 6
   let tempTrip []
   let tempTimes []
-  if driver = 0 [ set tempTrip (list schools markets parks) set tempTimes [ 1000 400 700 ] ]
-  if driver = 1 [ set tempTrip (list offices) set tempTimes [ 1600 ] ]
+  if driver = 0 [ set tempTrip (list schools markets parks) set tempTimes [ 1000 400 700 ] set driver0 driver0 + 1 ]
+  if driver = 1 [ set tempTrip (list offices) set tempTimes [ 1600 ] set driver1 driver1 + 1 ]
   if driver = 2 [
     set tempTrip shuffle (list houses schools offices offices markets stadiums parks
                                houses schools offices offices markets stadiums parks
                                houses schools offices offices markets stadiums parks)
     set tempTimes [ 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 ]
+    set driver2 driver2 + 1
   ]
   if driver = 3 [
     set tempTrip (list schools markets houses schools houses parks)
     set tempTimes [ 50 200 500 50 700 400 ]
+    set driver3 driver3 + 1
   ]
-  if driver = 4 [ set tempTrip shuffle (list parks offices) set tempTimes [ 900 1000 ] ]
-  if driver = 5 [ set tempTrip (list stadiums markets) set tempTimes [ 1500 300 ] ]
+  if driver = 4 [ set tempTrip shuffle (list parks offices) set tempTimes [ 900 1000 ] set driver4 driver4 + 1 ]
+  if driver = 5 [ set tempTrip (list stadiums markets) set tempTimes [ 1500 300 ] set driver5 driver5 + 1 ]
   createTrip tempTrip tempTimes
 end
 
@@ -330,10 +360,32 @@ to next-day-RL
     set numberStop 0
     set energy initEnergy
   ]
-  ask stations [
-    set numberOfBSS numberOfBSSFixed
-    set numberOfLanes numberOfLanesFixed
-  ]
+;  ask stations [ set numberOfBSS 100 ]
+  (ifelse RLMode = "normal" [ ask stations [ set numberOfBSS numberOfBSSFixed set numberOfLanes numberOfLanesFixed ] ]
+    RLMode = "min" [ ask stations [ set numberOfBSS minBSS set numberOfLanes minLanes ] ]
+    RLMode = "max" [ ask stations [ set numberOfBSS maxBSS set numberOfLanes maxLanes ] ]
+    RLMode = "optimal" [
+      ask station (num-cars + 61) [ set numberOfBSS 45 set numberOfLanes 3 ] ; station 1
+      ask station (num-cars + 60) [ set numberOfBSS 45 set numberOfLanes 2 ] ; station 2
+    ]
+  )
+;  ask stations [ ;; good one
+;    set numberOfBSS numberOfBSSFixed
+;    set numberOfLanes numberOfLanesFixed
+;  ]
+  ;; for RL
+;  ask stations [
+;    set numberOfBSS 40;numberOfBSSFixed
+;    set numberOfLanes 2;numberOfLanesFixed
+;  ]
+;  ask station 110 [
+;    set numberOfBSS 24;numberOfBSSFixed
+;    set numberOfLanes 3;numberOfLanesFixed
+;  ]
+;  ask station 109 [
+;    set numberOfBSS 20;numberOfBSSFixed
+;    set numberOfLanes 4;numberOfLanesFixed
+;  ]
   carSpeed
 end
 
@@ -343,12 +395,13 @@ to next-day-analysis
   ]
   ask stations [
     setup-stations
+    set numberOfBSS 100
   ]
   carSpeed
 end
 
 to chargeCar
-  set energy energy + 10
+  set energy energy + 5
   if energy > initEnergy [
     set isCharging 0
     set inPosition 0
@@ -386,7 +439,7 @@ to go
     ]
     if movement = 1 and numberStop < length trip and energy > minEnergy and isCharging = 0 [
       fd speed
-      set energy energy - 1
+      set energy energy - 1.3
       let tempLocation item numberStop trip
       ;let tempTimer
       set label-color green
@@ -422,7 +475,7 @@ to go
         ]
         pursue nearestStation
         fd speed
-        set energy energy - 1
+        set energy energy - 1.3
         set arrivalTimeStation arrivalTimeStation + 1
       ]
     ]
@@ -485,29 +538,62 @@ to go
       set stopRL 1
       check-Qtable
       if stopRL > 0 [
-        stop
         bestConfig
+        stop
       ]
     ]
     [
       ;; analysis
-      if days > 1000 [
+      if days > 100 [ ;1000
         busiestIntersection
         stop
       ]
-      next-day-analysis
+      ifelse analysis1 [ next-day-RL ]
+      [ next-day-analysis ]
+      ;reset days
+      ;reset location of BSS
     ]
+  ]
+  if analysis1 and days > 7 [
+    reset-ticks
+    stop
   ]
   tick
 end
 
+to reset
+  ask stations [
+    setup-stations
+  ]
+  set days 1
+end
+
+to putStation
+  ask stations [
+    setup-stations
+  ]
+  ask station (num-cars + 60) [ move-to patch 8 16 ]
+  ask station (num-cars + 61) [ move-to patch 8 -14 ]
+  set days 1
+end
+
+to optimal
+  (ifelse RLMode = "normal" [ ask stations [ set numberOfBSS numberOfBSSFixed set numberOfLanes numberOfLanesFixed ] ]
+    RLMode = "min" [ ask stations [ set numberOfBSS minBSS set numberOfLanes minLanes ] ]
+    RLMode = "max" [ ask stations [ set numberOfBSS maxBSS set numberOfLanes maxLanes ] ]
+    RLMode = "optimal" [
+      ask station (num-cars + 61) [ set numberOfBSS 45 set numberOfLanes 3 ] ; station 1
+      ask station (num-cars + 60) [ set numberOfBSS 45 set numberOfLanes 2 ] ; station 2
+    ]
+  )
+end
 ;;;;;;;;;;;;;;;;;;;;;;; Reinforcement Learning section ;;;;;;;;;;;;;;;;;;;;;;;;;
 to setup-reinforcement
   ask stations [
     let i 0
     let j 0
     set Q table:make
-    while [ i < 9 ] [
+    while [ i < 12 ] [
       table:put Q (word "s" i) [ 0 0 0 0 ]
       set i i + 1
     ]
@@ -524,9 +610,12 @@ to setup-reinforcement
     table:put states (word "s3") [ 4 3 6 0 ]
     table:put states (word "s4") [ 5 3 7 1 ]
     table:put states (word "s5") [ 5 4 8 2 ]
-    table:put states (word "s6") [ 7 6 6 3 ]
-    table:put states (word "s7") [ 8 6 7 4 ]
-    table:put states (word "s8") [ 8 7 8 5 ]
+    table:put states (word "s6") [ 7 6 9 3 ]
+    table:put states (word "s7") [ 8 6 10 4 ]
+    table:put states (word "s8") [ 8 7 11 5 ]
+    table:put states (word "s9") [ 10 9 9 6 ]
+    table:put states (word "s10") [ 11 9 10 7 ]
+    table:put states (word "s11") [ 11 10 11 8 ]
   ]
 end
 
@@ -542,13 +631,14 @@ to reinforcement
     set Qnew table:get Q (word "s" state)
     set Qnew item action Qnew ;; get Q(s,a)
 
-    let available 1
+    set available 1
     if numberOfBSS <= 0 [ set available 0 ]
     ;; rewards for not desired states
     (ifelse numberOfLanesFixed < minLanes [ set reward -10000 set numberOfLanesFixed minLanes ]
       numberOfLanesFixed > maxLanes [ set reward -10000 set numberOfLanesFixed maxLanes ]
       numberOfBSSFixed < minBSS [ set reward -10000 set numberOfBSSFixed minBSS ]
       numberOfBSSFixed > maxBSS [ set reward -10000 set numberOfBSSFixed maxBSS ]
+      length(queueTimeCar) = 0 [ set reward -10000 ]
       [ set reward (0 - mean(queueTimeCar) + secondsDay / idleTime - numberOfBSS / 10 + (available - 1) * 10000 ) ]
     )
     ;; reinitiliaze station variables
@@ -593,8 +683,8 @@ end
 to doActions [actionX]
   (ifelse actionX = 0 [ set numberOfLanesFixed numberOfLanesFixed + 1 show "action0" ]
     actionX = 1 [ set numberOfLanesFixed numberOfLanesFixed - 1 show "action1" ]
-    actionX = 2 [ set numberOfBSSFixed numberOfBSSFixed + 1 show "action2" ]
-    actionX = 3 [ set numberOfBSSFixed numberOfBSSFixed - 1 show "action3" ]
+    actionX = 2 [ set numberOfBSSFixed numberOfBSSFixed + 5 show "action2" ]
+    actionX = 3 [ set numberOfBSSFixed numberOfBSSFixed - 5 show "action3" ]
     [show "nada"]
   )
 end
@@ -603,7 +693,7 @@ to check-Qtable
   ask stations [
     let temp 0
     let i 0
-    while [ i < 9 ] [
+    while [ i < 12 ] [
       set temp table:get Q (word "s" i)
       if member? 0 temp [ set stopRL 0 ]
       set i i + 1
@@ -612,33 +702,37 @@ to check-Qtable
 end
 
 to bestConfig
-  let maximum -999999
-  let indexState 0
   ask stations [
+    let maximum -999999
+    let indexState 0
     let temp 0
     let i 0
-    while [ i < 9 ] [
+    while [ i < 12 ] [
       set temp table:get Q (word "s" i)
       set temp max temp
       if temp > maximum [ set maximum temp set indexState i ]
       set i i + 1
     ]
+    show "I finished"
+    show indexState
+    show maximum
+    set finalState table:get states (word "s" indexState)
+    set finalState position maximum finalState
   ]
-  show indexState
-  show maximum
 end
 
 to busiestIntersection
   let maximum 0
-  let location 0
+  set location 0
   let maximumN 0
-  let locationN 0
+  set locationN 0
   let tempp max-n-of 1 patches [iterations]
   set maximum [iterations] of tempp
   set location [self] of tempp
   let temppp max-n-of 1 patches [iterationsN]
-  set maximumN [iterationsN] of temppp
-  set locationN [self] of temppp
+  set maximumN [iterationsN] of max-n-of 3 patches [iterationsN]
+  ;set locationN [self] of temppp
+  set locationN [self] of max-n-of 1 patches [iterationsN]
   show "Busiest"
   show location
   show maximum
@@ -1003,6 +1097,12 @@ to setup-grid
   ;; schools
   create-schools 1 [
     set shape "building institution"
+    setxy (max-pxcor - 52) (max-pycor - 1.5)
+    set size 3
+    set color 5
+  ]
+  create-schools 1 [
+    set shape "building institution"
     setxy (max-pxcor - 28) (max-pycor - 36.5)
     set size 3
     set color 5
@@ -1060,10 +1160,10 @@ ticks
 30.0
 
 BUTTON
-64
-76
-127
-109
+88
+79
+151
+112
 NIL
 setup
 NIL
@@ -1077,10 +1177,10 @@ NIL
 1
 
 BUTTON
-92
-169
-155
-202
+88
+124
+151
+157
 NIL
 go
 T
@@ -1094,72 +1194,211 @@ NIL
 1
 
 SLIDER
-26
-309
-198
-342
+34
+171
+206
+204
 num-cars
 num-cars
 0
 100
-50.0
+100.0
 1
 1
 NIL
 HORIZONTAL
 
 SWITCH
-62
-459
-171
-492
+69
+210
+178
+243
 initialCars
 initialCars
-0
+1
 1
 -1000
 
 MONITOR
-274
-514
-395
-559
+62
+318
+183
+363
 lanes of station 1
-[numberOfLanes] of station (num-cars + 59)
-17
-1
-11
-
-MONITOR
-411
-514
-533
-559
-lanes of station 2
 [numberOfLanes] of station (num-cars + 60)
 17
 1
 11
 
 MONITOR
-59
-387
-116
-432
+62
+374
+184
+419
+lanes of station 2
+[numberOfLanes] of station (num-cars + 61)
+17
+1
+11
+
+MONITOR
+593
+10
+650
+55
 NIL
-days
+Days
 17
 1
 11
 
 CHOOSER
-40
-253
-178
-298
+53
+251
+191
+296
 Mode
 Mode
 "locations" "RL"
+0
+
+MONITOR
+366
+440
+482
+485
+MV intersection
+location
+17
+1
+11
+
+MONITOR
+504
+440
+615
+485
+MVN intersection
+locationN
+17
+1
+11
+
+MONITOR
+631
+441
+726
+486
+State station 1
+4
+17
+1
+11
+
+MONITOR
+732
+441
+827
+486
+State station 2
+3
+17
+1
+11
+
+BUTTON
+63
+522
+126
+555
+NIL
+reset
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+74
+484
+163
+517
+NIL
+putStation
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+SWITCH
+65
+570
+171
+603
+analysis1
+analysis1
+0
+1
+-1000
+
+PLOT
+523
+496
+723
+646
+Drivers
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -955883 true "" "plot driver0"
+"pen-1" 1.0 0 -6459832 true "" "plot driver1"
+"pen-2" 1.0 0 -1184463 true "" "plot driver2"
+"pen-3" 1.0 0 -10899396 true "" "plot driver3"
+"pen-4" 1.0 0 -11221820 true "" "plot driver4"
+"pen-5" 1.0 0 -8630108 true "" "plot driver5"
+
+CHOOSER
+233
+506
+371
+551
+RLMode
+RLMode
+"normal" "min" "max" "optimal"
+3
+
+BUTTON
+89
+635
+160
+668
+NIL
+optimal
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
 1
 
 @#$#@#$#@
